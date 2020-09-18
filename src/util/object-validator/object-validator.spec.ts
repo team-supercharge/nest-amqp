@@ -74,7 +74,7 @@ describe('ObjectValidator', () => {
     });
 
     it('should work with validator options', async () => {
-      const user = { name: 'Peter', age: null };
+      const user = { name: 'Peter', age: null as any };
 
       await expect(service.validate(UserDto1, user, { validatorOptions: { skipNullProperties: true } })).resolves.toEqual(user);
     });

@@ -29,7 +29,7 @@ describe('AMQPService', () => {
       createReceiver: jest.fn().mockImplementation(options => ({
         on: (event: ReceiverEvents, callback: (context: any) => any) => receiverEvents.push({ event, callback }),
         credits: 0,
-        addCredit: function(credits) {
+        addCredit: function(credits: number) {
           this.credits += credits;
         },
         linkOptions: options,

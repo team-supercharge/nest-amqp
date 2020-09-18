@@ -147,7 +147,7 @@ describe('QueueService', () => {
 
       it('should successfully validate and transform parsed body', async () => {
         const body = { name: 'Peter' };
-        const callback = async result => {
+        const callback = async (result: any) => {
           expect(result).toBeInstanceOf(TestDto);
           expect(result).toEqual(body);
         };
@@ -247,14 +247,14 @@ describe('QueueService', () => {
 
   describe('getReceiver()', () => {
     it('should create receiver if not exists yet', async () => {
-      await (queueService as any).getReceiver('queueName', 1, () => void 0);
+      await (queueService as any).getReceiver('queueName', 1, async () => {});
 
       expect((queueService as any).receivers.size).toBe(1);
     });
 
     it('should not create an existing receiver', async () => {
-      await (queueService as any).getReceiver('queueName', 1, () => void 0);
-      await (queueService as any).getReceiver('queueName', 1, () => void 0);
+      await (queueService as any).getReceiver('queueName', 1, async () => {});
+      await (queueService as any).getReceiver('queueName', 1, async () => {});
 
       expect((queueService as any).receivers.size).toBe(1);
     });
@@ -287,6 +287,13 @@ describe('QueueService', () => {
       const result = (queueService as any).decodeMessage(Buffer.from('{}'));
 
       expect(result).toEqual({});
+    });
+
+    it('should with the argument itself if it is an object', () => {
+      const obj = { name: 'Peter' };
+      const result = (queueService as any).decodeMessage(obj);
+
+      expect(result).toBe(obj);
     });
 
     it('should decode not object but valid values', () => {

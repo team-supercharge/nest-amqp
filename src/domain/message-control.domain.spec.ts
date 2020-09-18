@@ -54,7 +54,7 @@ describe('MessageControl', () => {
     });
 
     it('should return with unknown rejection reason', () => {
-      const reason = { message: null };
+      const reason = { message: null } as any;
       reason.message = reason;
       messageControl.reject(reason);
 
