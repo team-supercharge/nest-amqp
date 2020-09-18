@@ -16,6 +16,7 @@ $ npm install --save @team-supercharge/nest-amqp
 
 ## Usage
 
+
 First you have to import the Queue module into the app module. The `QueueModule.forRoot()` method's first parameter 
 is the connection URI for the message broker server:
 
