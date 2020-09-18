@@ -11,7 +11,7 @@ npm run release
 git push --follow-tags origin master
 
 # build the production app
-npm run build
+npm run build:prod
 
 # copy the files to the dist directory
 cp package.json README.md LICENSE dist/
