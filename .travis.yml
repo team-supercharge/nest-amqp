@@ -11,6 +11,8 @@ install:
 
 jobs:
   include:
+    - stage: Commit lint
+      script: ./node_modules/.bin/commitlint --from $(git merge-base --fork-point master) --verbose
     - stage: Lint
       script: npm run lint
     - stage: Test
