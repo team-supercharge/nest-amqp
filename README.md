@@ -1,7 +1,8 @@
 # Nest AMQP 1.0 Module
 
-[travis-image]: https://api.travis-ci.org/team-supercharge/nest-amqp.svg?branch=master
-[travis-url]: https://travis-ci.org/team-supercharge/nest-amqp
+[![Build Status](https://travis-ci.org/apache/incubator-superset.svg?branch=master)](https://travis-ci.org/github/team-supercharge/nest-amqp)
+<a href="https://www.npmjs.com/@team-supercharge/nest-amqp" target="_blank"><img src="https://img.shields.io/npm/v/@team-supercharge/nest-amqp.svg" alt="NPM Version" /></a>
+<a href="https://www.npmjs.com/@team-supercharge/nest-amqp" target="_blank"><img src="https://img.shields.io/npm/v/@team-supercharge/nest-amqp.svg" alt="Package License" /></a>
 
 ## Description
 
