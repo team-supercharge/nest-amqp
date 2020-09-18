@@ -14,4 +14,6 @@ jobs:
     - stage: Lint
       script: npm run lint
     - stage: Test
-      script: npm test
+      script:
+      - npm test
+      - npm run codecov

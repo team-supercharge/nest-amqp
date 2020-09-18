@@ -3,7 +3,7 @@ module.exports = {
   rootDir: 'src',
   collectCoverage: true,
   coverageDirectory: '../coverage',
-  coverageReporters: ['text'],
+  coverageReporters: ['text', 'lcov', 'clover', 'json'],
   coverageThreshold: {
     global: {
       branches: 80,
