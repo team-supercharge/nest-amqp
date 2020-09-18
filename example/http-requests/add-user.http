@@ -1,0 +1,19 @@
+// add a valid user
+POST http://{{host}}/user
+Content-Type: application/json
+
+{
+  "name": "Peter",
+  "age": 23
+}
+
+###
+
+// add an invalid user
+POST http://{{host}}/user
+Content-Type: application/json
+
+{
+  "name": "Eva",
+  "age": "20"
+}

@@ -1,0 +1,17 @@
+os: linux
+dist: focal # 20.04 LTS
+sudo: false
+
+language: node_js
+node_js:
+  - 12
+
+install:
+  - npm ci
+
+jobs:
+  include:
+    - stage: Lint
+      script: npm run lint
+    - stage: Test
+      script: npm test
