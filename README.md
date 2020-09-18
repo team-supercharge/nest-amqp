@@ -40,7 +40,10 @@ Then create a `user.module.ts` feature module what will give all the functionali
 ```javascript
 import { Module } from '@nestjs/common';
 
-@Module({})
+@Module({
+  controllers: [],
+  providers: [],
+})
 export class UserModule {}
 ```
 
@@ -94,7 +97,7 @@ to the queue with the payload what it gets as HTTP body:
 
 ```javascript
 import { Body, Controller, Post } from '@nestjs/common';
-import { QueueService } from '@supercharge/nest-amqp';
+import { QueueService } from '@team-supercharge/nest-amqp';
 
 import { AddUserDto } from './user.dto';
 
