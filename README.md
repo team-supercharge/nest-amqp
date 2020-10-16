@@ -27,6 +27,35 @@ $ npm install --save @team-supercharge/nest-amqp
 In the subsections you can see how to send and receive messages, how to handle message transfer and how to use DTO classes to message 
 payload transformation and validation.
 
+### Create connection
+
+To create a connection, you have to import the `QueueModule.forRoot()` module into your application's root module. The `forRoot()`
+static method has 2 parameters: the first and required is the connection URI string, and the second is the *optional* connection 
+options object. The connection options object extends the [Rhea's connection options](https://www.npmjs.com/package/rhea#connectoptions) 
+and accepts these new properties:
+* **throwExceptionOnConnectionError**?: A boolean value. If it's `true` then AMQPModule will throw forward the exception which occurs 
+  during the connection creation. Default value is `false`.
+
+> Note: the AMQPModule package does not support multiple connection!
+
+```typescript
+import { Module } from '@nestjs/common';
+import { QueueModule } from '@team-supercharge/nest-amqp';
+
+@Module({
+  imports: [
+    QueueModule.forRoot(
+      'amqp://user:password@localhost:5672', 
+      { 
+        throwExceptionOnConnectionError: true
+      }
+    ),
+    // ...
+  ],
+})
+export class AppModule {}
+```
+
 ### Send a message
 
 You can send messages with the `QueueService`. First you have to inject the service instance in the constructor, then you can use it to

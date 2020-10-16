@@ -23,7 +23,7 @@ export class AMQPService {
 
   /**
    * Parses the connection URI and connect to the message broker by the given
-   * informations.
+   * information.
    *
    * NOTE: If the connection closes and there was no error then the service will
    * attempt to reconnect to the message broker but only once.
@@ -33,13 +33,18 @@ export class AMQPService {
    * ```
    *
    * @param {string} connectionUri The URI which contains the main connection settings.
-   * @param {object} [connectionOptions] Options for the `rhea-promise` Connection.
+   * @param {AMQPConnectionOptions} [connectionOptions] Options for the `rhea-promise` Connection.
    * @return {Connection} The created `rhea-promise` Connection.
    * @static
    */
   public static async createConnection(connectionUri: string, connectionOptions: AMQPConnectionOptions = {}): Promise<Connection> {
+    if (Object.prototype.toString.call(connectionOptions) !== '[object Object]') {
+      throw new Error('AMQPModule connection options must an object');
+    }
+
     logger.info('creating AMQP client');
 
+    const { throwExceptionOnConnectionError, ...rheaConnectionOptions } = connectionOptions;
     const { protocol, username, password, hostname, port } = new URL(connectionUri);
 
     logger.info('initializing client connection to', {
@@ -56,7 +61,7 @@ export class AMQPService {
       transport: protocol === 'amqps:' ? 'ssl' : 'tcp',
       host: hostname,
       port: Number.parseInt(port, 10),
-      ...connectionOptions,
+      ...rheaConnectionOptions,
     });
 
     connection.on(ConnectionEvents.connectionOpen, (_: EventContext) => {
@@ -94,7 +99,15 @@ export class AMQPService {
       logger.warn('connection closed by peer', context);
     });
 
-    await connection.open();
+    try {
+      await connection.open();
+    } catch (err) {
+      logger.error('connection error', err);
+
+      if (throwExceptionOnConnectionError === true) {
+        throw err;
+      }
+    }
     logger.info('created AMQP connection');
 
     return connection;

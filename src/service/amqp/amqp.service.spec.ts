@@ -15,13 +15,14 @@ describe('AMQPService', () => {
   let connection: Connection;
   let connectionEvents: Array<{ event: ConnectionEvents; callback: (context: any) => any }> = [];
   let senderEvents: Array<{ event: SenderEvents; callback: (context: any) => any }> = [];
+  let connectionOpenMock: jest.Mock = jest.fn().mockResolvedValue(null);
   const receiverEvents: Array<{ event: ReceiverEvents; callback: (context: any) => any }> = [];
 
   beforeAll(() => {
     // mock the Connection constructor
     (Connection as any).mockImplementation(() => ({
       on: (event: ConnectionEvents, callback: (context: any) => any) => connectionEvents.push({ event, callback }),
-      open: jest.fn().mockResolvedValue(null),
+      open: connectionOpenMock,
       close: jest.fn().mockResolvedValue(null),
       createAwaitableSender: jest.fn().mockResolvedValue({
         on: (event: SenderEvents, callback: (context: any) => any) => senderEvents.push({ event, callback }),
@@ -66,6 +67,35 @@ describe('AMQPService', () => {
     const connection = await AMQPService.createConnection(connectionSecureUri);
 
     expect((connection as any).open).toHaveBeenCalled();
+  });
+
+  it('should create throw error if connection options is not a valid object', async () => {
+    await expect(
+      AMQPService.createConnection(connectionSecureUri, null)
+    ).rejects.toThrow(/connection options must an object/);
+  });
+
+  describe('connection options', () => {
+    it('should not throw connection error by default', async () => {
+      connectionOpenMock = jest.fn().mockRejectedValue(new Error('Test'));
+
+      await expect(
+        AMQPService.createConnection(connectionUri)
+      ).resolves.toBeInstanceOf(Object);
+
+      connectionOpenMock = jest.fn().mockResolvedValue(null);
+    });
+
+    it('should throw connection error by connection options', async () => {
+      const exception = new Error('Test');
+      connectionOpenMock = jest.fn().mockRejectedValue(exception);
+
+      await expect(
+        AMQPService.createConnection(connectionUri, { throwExceptionOnConnectionError: true })
+      ).rejects.toBe(exception);
+
+      connectionOpenMock = jest.fn().mockResolvedValue(null);
+    });
   });
 
   it('should listen to connection events', async () => {
