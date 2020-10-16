@@ -62,7 +62,7 @@ as well. Other custom available options:
 
 ### Listen to a queue
 
-If you want to receive the messages which arrive on a queue then you have to listen on the specific queue. You can do this with the
+If you want to receive the messages which arrive at a queue then you have to listen on the specific queue. You can do this with the
 `@Listen()` decorator, what will you add to a class method which has `@Injectable()` decorator. Here is an example:
 
 ```typescript
@@ -143,8 +143,8 @@ export class LogEntryDto {
   @IsIn([1, 2, 3, 4, 5])
   public readonly level: number;
 
-  constructor(userData: AddUserDto) {
-    Object.assign(this, userData);
+  constructor(props: Partial<LogEntryDto>) {
+    Object.assign(this, props);
   }
 }
 ```
@@ -155,7 +155,7 @@ don't have `@Expose()` decorator will be removed during the transformation from 
 properties want we from the payload when the message arrives at the consumer side. The `@Transform()` decorator is to manually cast or 
 transform a value during the transformation process. In the example we can see that when the message arrives, the body will contain a 
 JSON object which is converted to string. The stringified JSON object has only primitive values so the `date` property will be a string 
-date. We want it as a Date object instance so we manually transform it into a Date object with the `@Transform()` decorator. We have to 
+date. We want it as a Date object instance, so we manually transform it into a Date object with the `@Transform()` decorator. We have to 
 notice that only when the payload will be transformed to the DTO object (i.e. when the message arrives at the consumer side) and not when
 the object will be transformed to a string (i.e. before the sending on the producer side), because the DTO object will be represented as 
 a string in the message payload. The other decorators are to validate the property values.
@@ -230,12 +230,16 @@ import { QueueModule } from '@team-supercharge/nest-amqp';
 export class AppModule {} 
 ```
 
-Then create a `user.module.ts` feature module what will give all the functionality which belongs to the users:
+Then create a `user.module.ts` feature module what will give all the functionality which belongs to the users.
+
+> Note: the `QueueModule.forFeature()` module must be imported to each feature module of the application. 
 
 ```typescript
 import { Module } from '@nestjs/common';
+import { QueueModule } from '@team-supercharge/nest-amqp';
 
 @Module({
+  imports: [QueueModule.forFeature()],
   controllers: [],
   providers: [],
 })
@@ -311,9 +315,9 @@ export class UserController {
 }
 ```
 
-We can see that the `send()` method is responsible to add message to the given queue. 
+We can see that the `send()` method is responsible to add a message to the given queue. 
 
-And the last thing is to add this controller to the corresponding module:
+The last thing is to add this controller to the corresponding module:
 
 ```typescript
 import { UserController } from './user.controller';
@@ -327,7 +331,7 @@ import { UserListener } from './user.listener';
 export class UserModule {}
 ```
 
-Finally start the app with `npm run start` and it will listen on http://localhost:4444 URL. You can test the
+Finally, start the app with `npm run start` and it will listen on http://localhost:4444 URL. You can test the
 functionality with sample HTTP requests which are in the `example/http-requests/add-user.http` file.
 
 ## License
