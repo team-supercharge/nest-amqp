@@ -5,4 +5,6 @@ import { ConnectionOptions } from 'rhea-promise';
  *
  * @publicApi
  */
-export type AMQPConnectionOptions = ConnectionOptions
+export type AMQPConnectionOptions = ConnectionOptions & {
+  throwExceptionOnConnectionError?: boolean;
+}
