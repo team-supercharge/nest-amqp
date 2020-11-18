@@ -50,7 +50,7 @@ export class AMQPService {
     logger.info('initializing client connection to', {
       protocol,
       username,
-      password,
+      password: '*****',
       hostname,
       port,
     });
