@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # configure Git user and e-mail for the release commit
 git config user.name "Tamás Hugyák"
 git config user.email tahubu@outlook.com
