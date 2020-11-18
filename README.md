@@ -22,6 +22,11 @@ control over the message how to handle it: accept, reject or release.
 $ npm install --save @team-supercharge/nest-amqp
 ```
 
+To use the library, the peer dependencies must also be installed:
+```bash
+$ npm install --save class-transformer class-validator
+```
+
 ## Usage
 
 In the subsections you can see how to send and receive messages, how to handle message transfer and how to use DTO classes to message 
