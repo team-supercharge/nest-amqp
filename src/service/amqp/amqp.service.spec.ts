@@ -30,7 +30,7 @@ describe('AMQPService', () => {
       createReceiver: jest.fn().mockImplementation(options => ({
         on: (event: ReceiverEvents, callback: (context: any) => any) => receiverEvents.push({ event, callback }),
         credits: 0,
-        addCredit: function(credits: number) {
+        addCredit: function (credits: number) {
           this.credits += credits;
         },
         linkOptions: options,
@@ -63,6 +63,13 @@ describe('AMQPService', () => {
     expect(service).toBeDefined();
   });
 
+  it('should return whith connection options', async () => {
+    const connectionOptions = { throwExceptionOnConnectionError: true };
+    await AMQPService.createConnection(connectionSecureUri, connectionOptions);
+
+    expect(service.getConnectionOptions()).toEqual(connectionOptions);
+  });
+
   it('should create connection', async () => {
     const connection = await AMQPService.createConnection(connectionSecureUri);
 
@@ -70,18 +77,14 @@ describe('AMQPService', () => {
   });
 
   it('should create throw error if connection options is not a valid object', async () => {
-    await expect(
-      AMQPService.createConnection(connectionSecureUri, null)
-    ).rejects.toThrow(/connection options must an object/);
+    await expect(AMQPService.createConnection(connectionSecureUri, null)).rejects.toThrow(/connection options must an object/);
   });
 
   describe('connection options', () => {
     it('should not throw connection error by default', async () => {
       connectionOpenMock = jest.fn().mockRejectedValue(new Error('Test'));
 
-      await expect(
-        AMQPService.createConnection(connectionUri)
-      ).resolves.toBeInstanceOf(Object);
+      await expect(AMQPService.createConnection(connectionUri)).resolves.toBeInstanceOf(Object);
 
       connectionOpenMock = jest.fn().mockResolvedValue(null);
     });
@@ -90,9 +93,7 @@ describe('AMQPService', () => {
       const exception = new Error('Test');
       connectionOpenMock = jest.fn().mockRejectedValue(exception);
 
-      await expect(
-        AMQPService.createConnection(connectionUri, { throwExceptionOnConnectionError: true })
-      ).rejects.toBe(exception);
+      await expect(AMQPService.createConnection(connectionUri, { throwExceptionOnConnectionError: true })).rejects.toBe(exception);
 
       connectionOpenMock = jest.fn().mockResolvedValue(null);
     });

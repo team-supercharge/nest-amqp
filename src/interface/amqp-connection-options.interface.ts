@@ -7,4 +7,5 @@ import { ConnectionOptions } from 'rhea-promise';
  */
 export type AMQPConnectionOptions = ConnectionOptions & {
   throwExceptionOnConnectionError?: boolean;
-}
+  acceptValidationNullObjectException?: boolean;
+};
