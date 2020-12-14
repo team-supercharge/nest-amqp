@@ -10,6 +10,7 @@ import { ObjectValidator } from '../../util/object-validator';
 import { EventContextMock } from '../../test/event-context.mock';
 import { sleep } from '../../util/functions';
 import { SendState } from '../../enum';
+import { AMQPConnectionOptions } from '../../interface';
 
 jest.mock('../amqp/amqp.service');
 jest.mock('../../domain/message-control.domain');
@@ -52,6 +53,10 @@ describe('QueueService', () => {
             createReceiver: jest.fn().mockResolvedValue(jest.fn()),
             createSender: jest.fn().mockResolvedValue(new EventContextMock().sender),
             disconnect: jest.fn().mockResolvedValue(jest.fn()),
+            connectionOptions: {} as AMQPConnectionOptions,
+            getConnectionOptions(): AMQPConnectionOptions {
+              return this.connectionOptions;
+            },
           },
         },
       ],
@@ -159,7 +164,7 @@ describe('QueueService', () => {
         await messageHandler(eventContext);
       });
 
-      it('should handle validation error', async () => {
+      it('should handle validation error when message body is null', async () => {
         await queueService.listen(defaultQueue, () => void 0, { type: TestDto });
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
@@ -168,11 +173,10 @@ describe('QueueService', () => {
         await messageHandler(eventContext);
 
         const messageControl = getInternallyCreatedMessageControl();
-        // FIXME: rename accept to reject after the original logic was fixed
-        expect(messageControl.accept).toHaveBeenCalled();
+        expect(messageControl.reject).toHaveBeenCalled();
       });
 
-      it('should handle validation error', async () => {
+      it('should handle validation error when message body is an empty object', async () => {
         await queueService.listen(defaultQueue, () => void 0, { type: TestDto });
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
@@ -182,6 +186,20 @@ describe('QueueService', () => {
 
         const messageControl = getInternallyCreatedMessageControl();
         expect(messageControl.accept).not.toHaveBeenCalled();
+      });
+
+      it('should accept context when ValidationNullObjectException was thrown', async () => {
+        (amqpService as any).connectionOptions.acceptValidationNullObjectException = true;
+        await queueService.listen(defaultQueue, () => void 0, { type: TestDto });
+        const messageHandler = getMessageHandler(amqpService);
+        const eventContext = new EventContextMock();
+        eventContext.message.body = 'null';
+
+        await messageHandler(eventContext);
+
+        const messageControl = getInternallyCreatedMessageControl();
+        expect(messageControl.accept).toHaveBeenCalled();
+        (amqpService as any).connectionOptions.acceptValidationNullObjectException = false;
       });
     });
   });

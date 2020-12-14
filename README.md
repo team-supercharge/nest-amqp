@@ -40,6 +40,9 @@ options object. The connection options object extends the [Rhea's connection opt
 and accepts these new properties:
 * **throwExceptionOnConnectionError**?: A boolean value. If it's `true` then AMQPModule will throw forward the exception which occurs 
   during the connection creation. Default value is `false`.
+* **acceptValidationNullObjectException**?: A boolean value. If it's `true` then AMQPModule will accept the message when a
+  `ValidationNullObjectException` error was thrown. (ValidationNullObjectException will be thrown when message body is null). Otherwise the
+  message will be rejected on `ValidationNullObjectException` error. Default value is `false`.
 
 > Note: the AMQPModule package does not support multiple connection!
 

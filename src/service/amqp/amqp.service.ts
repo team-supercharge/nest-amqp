@@ -22,6 +22,13 @@ export class AMQPService {
   public static readonly eventEmitter: EventEmitter = new EventEmitter();
 
   /**
+   * Connection options object for `rhea-promise` Connection and internal options
+   * @protected
+   * @static
+   */
+  protected static connectionOptions: AMQPConnectionOptions = {};
+
+  /**
    * Parses the connection URI and connect to the message broker by the given
    * information.
    *
@@ -41,6 +48,8 @@ export class AMQPService {
     if (Object.prototype.toString.call(connectionOptions) !== '[object Object]') {
       throw new Error('AMQPModule connection options must an object');
     }
+
+    AMQPService.connectionOptions = connectionOptions;
 
     logger.info('creating AMQP client');
 
@@ -125,6 +134,15 @@ export class AMQPService {
     await this.connection.close();
 
     logger.info('queue disconnected');
+  }
+
+  /**
+   * Returns the connection object with which the AMQP connection was created.
+   *
+   * @return {AMQPConnectionOptions} Connection options.
+   */
+  public getConnectionOptions(): AMQPConnectionOptions {
+    return { ...AMQPService.connectionOptions };
   }
 
   /**

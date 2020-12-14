@@ -88,11 +88,17 @@ export class QueueService {
         } catch (error) {
           if (error instanceof ValidationNullObjectException) {
             logger.error(`null received as body on ${context.receiver.address}`);
+
             // HACK
             // TODO - Use control.reject for this error,
             // once AMQ Broker can handle the difference between reject and release
             // control.reject(error.message);
-            control.accept();
+            const { acceptValidationNullObjectException } = this.amqpService.getConnectionOptions();
+            if (acceptValidationNullObjectException === true) {
+              control.accept();
+            } else {
+              control.reject(error.message);
+            }
 
             return;
           }
