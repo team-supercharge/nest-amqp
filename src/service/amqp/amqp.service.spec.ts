@@ -10,6 +10,7 @@ import { EventContextMock } from '../../test/event-context.mock';
 describe('AMQPService', () => {
   const connectionUri = 'amqp://localhost:5672';
   const connectionSecureUri = 'amqps://localhost:5672';
+  const connectionOptionsWithoutUri = { host: 'localhost', port: 5672, transport: 'tls' } as any;
   let module: TestingModule;
   let service: AMQPService;
   let connection: Connection;
@@ -72,6 +73,12 @@ describe('AMQPService', () => {
 
   it('should create connection', async () => {
     const connection = await AMQPService.createConnection(connectionSecureUri);
+
+    expect((connection as any).open).toHaveBeenCalled();
+  });
+
+  it('should create connection with connection options', async () => {
+    const connection = await AMQPService.createConnection(connectionOptionsWithoutUri);
 
     expect((connection as any).open).toHaveBeenCalled();
   });

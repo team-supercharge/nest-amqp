@@ -1,6 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter } from 'events';
-import { AwaitableSender, Connection, ConnectionEvents, EventContext, Receiver, ReceiverEvents, SenderEvents } from 'rhea-promise';
+import {
+  AwaitableSender,
+  Connection,
+  ConnectionEvents,
+  EventContext,
+  Receiver,
+  ReceiverEvents,
+  SenderEvents,
+  ConnectionOptions,
+} from 'rhea-promise';
 
 import { URL } from 'url';
 import { Logger } from '../../util';
@@ -28,6 +37,8 @@ export class AMQPService {
    */
   protected static connectionOptions: AMQPConnectionOptions = {};
 
+  public static async createConnection(connectionUri: string, connectionOptions?: AMQPConnectionOptions): Promise<Connection>;
+  public static async createConnection(connectionOptions: AMQPConnectionOptions): Promise<Connection>;
   /**
    * Parses the connection URI and connect to the message broker by the given
    * information.
@@ -39,39 +50,45 @@ export class AMQPService {
    * const connection = await AMQPService.createConnection('amqp://user:password@localhost:5672');
    * ```
    *
-   * @param {string} connectionUri The URI which contains the main connection settings.
-   * @param {AMQPConnectionOptions} [connectionOptions] Options for the `rhea-promise` Connection.
-   * @return {Connection} The created `rhea-promise` Connection.
    * @static
+   * @param {(string | AMQPConnectionOptions)} connectionUriOrOptions The URI or options which contains the main connection settings.
+   * @param {AMQPConnectionOptions} [connectionExtraOptions] Options for the `rhea-promise` Connection.
+   * @returns {Connection} The created `rhea-promise` Connection.
    */
-  public static async createConnection(connectionUri: string, connectionOptions: AMQPConnectionOptions = {}): Promise<Connection> {
-    if (Object.prototype.toString.call(connectionOptions) !== '[object Object]') {
+  public static async createConnection(
+    connectionUriOrOptions: string | ConnectionOptions,
+    connectionExtraOptions: AMQPConnectionOptions = {},
+  ): Promise<Connection> {
+    if (Object.prototype.toString.call(connectionExtraOptions) !== '[object Object]') {
       throw new Error('AMQPModule connection options must an object');
     }
 
-    AMQPService.connectionOptions = connectionOptions;
-
     logger.info('creating AMQP client');
+    AMQPService.connectionOptions = connectionExtraOptions;
 
-    const { throwExceptionOnConnectionError, ...rheaConnectionOptions } = connectionOptions;
-    const { protocol, username, password, hostname, port } = new URL(connectionUri);
+    let { throwExceptionOnConnectionError, ...rheaConnectionOptions } = connectionExtraOptions;
 
-    logger.info('initializing client connection to', {
-      protocol,
-      username,
-      password: '*****',
-      hostname,
-      port,
-    });
+    let connectionOptions: AMQPConnectionOptions;
 
-    const connection = new Connection({
-      password,
-      username,
-      transport: protocol === 'amqps:' ? 'ssl' : 'tcp',
-      host: hostname,
-      port: Number.parseInt(port, 10),
-      ...rheaConnectionOptions,
-    });
+    if (Object.prototype.toString.call(connectionUriOrOptions) === '[object String]') {
+      const { protocol, username, password, hostname, port } = new URL(connectionUriOrOptions as string);
+      connectionOptions = {
+        password,
+        username,
+        transport: protocol === 'amqps:' ? 'tls' : 'tcp',
+        host: hostname,
+        port: Number.parseInt(port, 10),
+        ...rheaConnectionOptions,
+      };
+    } else if (Object.prototype.toString.call(connectionUriOrOptions) === '[object Object]') {
+      connectionOptions = connectionUriOrOptions as ConnectionOptions;
+    } else {
+      throw new Error('AMQPModule connection options error');
+    }
+
+    logger.info('initializing client connection to', { ...connectionOptions, password: '*****' });
+
+    const connection = new Connection(connectionOptions);
 
     connection.on(ConnectionEvents.connectionOpen, (_: EventContext) => {
       logger.info('connection opened');
