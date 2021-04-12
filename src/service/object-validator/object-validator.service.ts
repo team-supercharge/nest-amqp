@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ClassTransformOptions, plainToClass } from 'class-transformer';
 import { validate, ValidationError, ValidatorOptions } from 'class-validator';
 
-import { ValidationNullObjectException } from '../exceptions';
+import { ValidationNullObjectException } from '../../util/exceptions';
 
 export interface ObjectValidationOptions {
   transformerOptions?: ClassTransformOptions;
@@ -13,7 +13,7 @@ export interface ObjectValidationOptions {
  * Class to validate an object or an array of objects.
  */
 @Injectable()
-export class ObjectValidator {
+export class ObjectValidatorService {
   /**
    * Validate and transform a source object by a decorated class. It works with
    * the `class-validator` and the `class-transformer` packages.

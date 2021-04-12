@@ -4,14 +4,18 @@ jest.mock('rhea-promise');
 
 import { Connection, ConnectionEvents, ReceiverEvents, SenderEvents } from 'rhea-promise';
 
-import { AMQP_CLIENT_TOKEN, AMQPService } from './amqp.service';
 import { EventContextMock } from '../../test/event-context.mock';
+import { AMQP_CLIENT_TOKEN, QUEUE_MODULE_OPTIONS } from '../../constant';
+import { QueueModuleOptions } from '../../interface';
+
+import { AMQPService } from './amqp.service';
 
 describe('AMQPService', () => {
   const connectionUri = 'amqp://localhost:5672';
   const connectionSecureUri = 'amqps://localhost:5672';
   let module: TestingModule;
   let service: AMQPService;
+  let moduleOptions: QueueModuleOptions = {};
   let connection: Connection;
   let connectionEvents: Array<{ event: ConnectionEvents; callback: (context: any) => any }> = [];
   let senderEvents: Array<{ event: SenderEvents; callback: (context: any) => any }> = [];
@@ -42,14 +46,23 @@ describe('AMQPService', () => {
     (Connection as any).mockClear();
     connectionEvents = [];
     senderEvents = [];
-    connection = await AMQPService.createConnection(connectionUri);
+    moduleOptions = { connectionUri };
     module = await Test.createTestingModule({
       providers: [
-        AMQPService,
+        {
+          provide: QUEUE_MODULE_OPTIONS,
+          useValue: moduleOptions,
+        },
         {
           provide: AMQP_CLIENT_TOKEN,
-          useValue: connection,
+          useFactory: async moduleOptions => {
+            connection = await AMQPService.createConnection(moduleOptions);
+
+            return connection;
+          },
+          inject: [QUEUE_MODULE_OPTIONS],
         },
+        AMQPService,
       ],
     }).compile();
     service = module.get<AMQPService>(AMQPService);
@@ -63,28 +76,25 @@ describe('AMQPService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should return whith connection options', async () => {
-    const connectionOptions = { throwExceptionOnConnectionError: true };
-    await AMQPService.createConnection(connectionSecureUri, connectionOptions);
-
-    expect(service.getConnectionOptions()).toEqual(connectionOptions);
+  it('should return with module options', async () => {
+    expect(service.getModuleOptions()).toEqual(moduleOptions);
   });
 
   it('should create connection', async () => {
-    const connection = await AMQPService.createConnection(connectionSecureUri);
+    const connection = await AMQPService.createConnection({ connectionUri: connectionSecureUri });
 
     expect((connection as any).open).toHaveBeenCalled();
   });
 
   it('should create throw error if connection options is not a valid object', async () => {
-    await expect(AMQPService.createConnection(connectionSecureUri, null)).rejects.toThrow(/connection options must an object/);
+    await expect(AMQPService.createConnection(null)).rejects.toThrow(/connection options must an object/);
   });
 
   describe('connection options', () => {
     it('should not throw connection error by default', async () => {
       connectionOpenMock = jest.fn().mockRejectedValue(new Error('Test'));
 
-      await expect(AMQPService.createConnection(connectionUri)).resolves.toBeInstanceOf(Object);
+      await expect(AMQPService.createConnection({ connectionUri })).resolves.toBeInstanceOf(Object);
 
       connectionOpenMock = jest.fn().mockResolvedValue(null);
     });
@@ -93,7 +103,7 @@ describe('AMQPService', () => {
       const exception = new Error('Test');
       connectionOpenMock = jest.fn().mockRejectedValue(exception);
 
-      await expect(AMQPService.createConnection(connectionUri, { throwExceptionOnConnectionError: true })).rejects.toBe(exception);
+      await expect(AMQPService.createConnection({ connectionUri, throwExceptionOnConnectionError: true })).rejects.toBe(exception);
 
       connectionOpenMock = jest.fn().mockResolvedValue(null);
     });
@@ -102,7 +112,7 @@ describe('AMQPService', () => {
   it('should listen to connection events', async () => {
     connectionEvents = [];
 
-    await AMQPService.createConnection(connectionSecureUri);
+    await AMQPService.createConnection({ connectionUri: connectionSecureUri });
 
     connectionEvents.forEach(event => event.callback({}));
 

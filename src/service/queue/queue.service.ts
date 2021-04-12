@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { AwaitableSender, Delivery, EventContext, Message, Receiver } from 'rhea-promise';
 
-import { extendObject, sleep, tryParseJSON, ValidationNullObjectException, Logger, ObjectValidator } from '../../util';
+import { extendObject, sleep, tryParseJSON, ValidationNullObjectException, Logger } from '../../util';
 import { MessageControl } from '../../domain';
 import { SendState } from '../../enum';
-import { AMQPService } from '..';
+import { AMQPService, ObjectValidatorService } from '..';
 import { ListenOptions, SendOptions } from '../../interface';
 
 const PARALLEL_MESSAGE_COUNT = 1;
@@ -20,7 +20,7 @@ export class QueueService {
   private readonly receivers: Map<string, Receiver>;
   private readonly senders: Map<string, AwaitableSender>;
 
-  constructor(private readonly amqpService: AMQPService, private readonly objectValidator: ObjectValidator) {
+  constructor(private readonly amqpService: AMQPService, private readonly objectValidatorService: ObjectValidatorService) {
     // this means only one sender and receiver / app / queue
     this.receivers = new Map<string, Receiver>();
     this.senders = new Map<string, AwaitableSender>();
@@ -32,12 +32,12 @@ export class QueueService {
    * objects when a new message arrives on the queue. If a receiver is already
    * created for the given queue then a new receiver won't be created.
    *
-   * @param {string} source Name of the queue.
+   * @param {string} queueName Name of the queue.
    * @param {function(object: T, control: MessageControl) => Promise<void>} callback Function what will invoked when message arrives.
    * @param {ListenOptions<T>} [options] Options for message processing.
    */
   public async listen<T>(
-    source: string,
+    queueName: string,
     callback: (object: T, control: MessageControl) => Promise<void>,
     options: ListenOptions<T>,
   ): Promise<void> {
@@ -47,7 +47,7 @@ export class QueueService {
     const validatorOptions = !!options && options.validatorOptions ? options.validatorOptions : {};
 
     const messageValidator = async (context: EventContext, control: MessageControl) => {
-      logger.trace(`incoming message on queue ${source}`);
+      logger.trace(`incoming message on queue ${queueName}`);
 
       const body: any = context.message.body;
       let object: T;
@@ -76,7 +76,7 @@ export class QueueService {
           // HACK - change for better solution, when available
           // Explanation: Class-transformer supports differentiating on type and using different classes, but currently the discriminator can only be
           // inside the nested object. This extra property will be deleted during transformation
-          // istanbul ignore if
+          // istanbul ignore next
           if (parsed && parsed.type && parsed.payload) {
             parsed.payload.type = parsed.type;
           }
@@ -84,7 +84,7 @@ export class QueueService {
           object =
             options && options.noValidate
               ? parsed
-              : await this.objectValidator.validate(options.type, parsed, { transformerOptions, validatorOptions });
+              : await this.objectValidatorService.validate(options.type, parsed, { transformerOptions, validatorOptions });
         } catch (error) {
           if (error instanceof ValidationNullObjectException) {
             logger.error(`null received as body on ${context.receiver.address}`);
@@ -93,7 +93,7 @@ export class QueueService {
             // TODO - Use control.reject for this error,
             // once AMQ Broker can handle the difference between reject and release
             // control.reject(error.message);
-            const { acceptValidationNullObjectException } = this.amqpService.getConnectionOptions();
+            const { acceptValidationNullObjectException } = this.amqpService.getModuleOptions();
             if (acceptValidationNullObjectException === true) {
               control.accept();
             } else {
@@ -107,9 +107,9 @@ export class QueueService {
 
           // istanbul ignore else
           if (Array.isArray(parsedError)) {
-            logger.error(`validation error on ${source}`, error, { parsed });
+            logger.error(`validation error on ${queueName}`, error, { parsed });
           } else {
-            logger.error(`unexpected error happened during validation process on ${source}`, error, { parsed });
+            logger.error(`unexpected error happened during validation process on ${queueName}`, error, { parsed });
           }
 
           // can't validate, need to reject message
@@ -124,31 +124,31 @@ export class QueueService {
         const startTime = new Date();
         await callback(object, control);
         const durationInMs = new Date().getTime() - startTime.getTime();
-        logger.info(`handling ${source} finished in ${durationInMs} (ms)`);
+        logger.info(`handling ${queueName} finished in ${durationInMs} (ms)`);
 
         // handle auto-accept when message is otherwise not handled
         if (!control.isHandled()) {
           control.accept();
         }
       } catch (error) {
-        logger.error(`error in callback on ${source}`, error);
+        logger.error(`error in callback on ${queueName}`, error);
 
         // can't process callback, need to reject message
         control.reject(error.message);
       }
 
-      logger.trace(`handled message on queue ${source}`);
+      logger.trace(`handled message on queue ${queueName}`);
     };
 
     const messageHandler = async (context: EventContext) => {
       const control: MessageControl = new MessageControl(context);
 
       messageValidator(context, control).catch(error => {
-        logger.error('unexpected error happened during message validation', error, { source: context.receiver.address });
+        logger.error('unexpected error happened during message validation', error, { queueName: context.receiver.address });
         control.reject(error.message);
       });
     };
-    await this.getReceiver(source, initialCredit, messageHandler);
+    await this.getReceiver(queueName, initialCredit, messageHandler);
   }
 
   /**
@@ -264,15 +264,19 @@ export class QueueService {
     this.receivers.clear();
   }
 
-  private async getReceiver(source: string, credit: number, messageHandler: (context: EventContext) => Promise<void>): Promise<Receiver> {
+  private async getReceiver(
+    queueName: string,
+    credit: number,
+    messageHandler: (context: EventContext) => Promise<void>,
+  ): Promise<Receiver> {
     let receiver;
 
-    if (this.receivers.has(source)) {
-      receiver = this.receivers.get(source);
+    if (this.receivers.has(queueName)) {
+      receiver = this.receivers.get(queueName);
     } else {
-      receiver = await this.amqpService.createReceiver(source, credit, messageHandler.bind(this));
+      receiver = await this.amqpService.createReceiver(queueName, credit, messageHandler.bind(this));
 
-      this.receivers.set(source, receiver);
+      this.receivers.set(queueName, receiver);
     }
 
     return receiver;
