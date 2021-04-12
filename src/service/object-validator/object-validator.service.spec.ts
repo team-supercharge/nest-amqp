@@ -2,11 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Expose } from 'class-transformer';
 import { IsNumber, IsString } from 'class-validator';
 
-import { ObjectValidator } from './object-validator';
-import { ValidationNullObjectException } from '../exceptions';
+import { ObjectValidatorService } from './object-validator.service';
+import { ValidationNullObjectException } from '../../util/exceptions';
 
 describe('ObjectValidator', () => {
-  let service: ObjectValidator;
+  let service: ObjectValidatorService;
 
   @Expose()
   class UserDto1 {
@@ -31,9 +31,9 @@ describe('ObjectValidator', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ObjectValidator],
+      providers: [ObjectValidatorService],
     }).compile();
-    service = module.get<ObjectValidator>(ObjectValidator);
+    service = module.get<ObjectValidatorService>(ObjectValidatorService);
   });
 
   it('should be defined', () => {

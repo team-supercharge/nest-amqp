@@ -1,35 +1,97 @@
-import { DynamicModule, Module, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ModuleRef } from '@nestjs/core';
-import { MetadataScanner } from '@nestjs/core/metadata-scanner';
+import { DynamicModule, Module, OnModuleDestroy, OnModuleInit, Provider, Type } from '@nestjs/common';
+import { Connection } from 'rhea-promise';
+import { MetadataScanner, ModuleRef } from '@nestjs/core';
 
-import { Logger, UtilModule } from './util';
-
-import { ListenerMetadata } from './domain';
+import { QueueModuleOptions, QueueModuleAsyncOptions, QueueModuleOptionsFactory } from './interface';
+import { AMQPService, ObjectValidatorService, QueueService } from './service';
 import { ListenerExplorer } from './explorer';
-import { AMQP_CLIENT_TOKEN, AMQP_CONNECTION_RECONNECT, AMQPService, QueueService } from './service';
-import { AMQPConnectionOptions } from './interface';
+import { AMQP_CLIENT_TOKEN, AMQP_CONNECTION_RECONNECT, QUEUE_MODULE_OPTIONS } from './constant';
+import { ListenerMetadata } from './domain';
+import { Logger } from './util';
 
-@Module({
-  imports: [UtilModule],
-})
+@Module({})
 export class QueueModule implements OnModuleInit, OnModuleDestroy {
   private static readonly moduleDefinition: DynamicModule = {
-    exports: [QueueService],
     module: QueueModule,
-    providers: [AMQPService, QueueService, MetadataScanner, ListenerExplorer],
+    providers: [AMQPService, QueueService, MetadataScanner, ListenerExplorer, ObjectValidatorService],
+    exports: [QueueService],
   };
 
-  public static forRoot(connectionUri: string, connectionOptions?: AMQPConnectionOptions): DynamicModule {
-    this.moduleDefinition.providers.push({
-      provide: AMQP_CLIENT_TOKEN,
-      useFactory: async () => AMQPService.createConnection(connectionUri, connectionOptions),
+  public static forRoot(connectionUri: string, options?: Omit<QueueModuleOptions, 'connectionUri'>): DynamicModule {
+    const queueModuleOptionsProvider = QueueModule.getQueueModuleOptionsProvider({ ...options, connectionUri });
+    const connectionProvider = QueueModule.getConnectionProvider();
+
+    Object.assign(QueueModule.moduleDefinition, {
+      providers: [queueModuleOptionsProvider, ...QueueModule.moduleDefinition.providers, connectionProvider],
     });
 
-    return this.moduleDefinition;
+    return QueueModule.moduleDefinition;
+  }
+
+  public static forRootAsync(options: QueueModuleAsyncOptions): DynamicModule {
+    const connectionProvider = QueueModule.getConnectionProvider();
+    const asyncProviders = this.createAsyncProviders(options);
+
+    Object.assign(QueueModule.moduleDefinition, {
+      imports: options.imports,
+      providers: [...asyncProviders, ...QueueModule.moduleDefinition.providers, connectionProvider],
+    });
+
+    return QueueModule.moduleDefinition;
   }
 
   public static forFeature(): DynamicModule {
-    return this.moduleDefinition;
+    return QueueModule.moduleDefinition;
+  }
+
+  private static createAsyncProviders(options: QueueModuleAsyncOptions): Provider[] {
+    if (options.useExisting || options.useFactory) {
+      return [this.createAsyncOptionsProvider(options)];
+    }
+
+    const useClass = options.useClass as Type<QueueModuleOptionsFactory>;
+
+    return [
+      this.createAsyncOptionsProvider(options),
+      {
+        provide: useClass,
+        useClass,
+      },
+    ];
+  }
+
+  private static createAsyncOptionsProvider(options: QueueModuleAsyncOptions): Provider {
+    if (options.useFactory) {
+      return {
+        provide: QUEUE_MODULE_OPTIONS,
+        useFactory: options.useFactory,
+        inject: options.inject || [],
+      };
+    }
+
+    // `as Type<QueueOptionsFactory>` is a workaround for microsoft/TypeScript#31603
+    const inject = [(options.useClass || options.useExisting) as Type<QueueModuleOptionsFactory>];
+
+    return {
+      provide: QUEUE_MODULE_OPTIONS,
+      useFactory: async (optionsFactory: QueueModuleOptionsFactory) => optionsFactory.createQueueModuleOptions(),
+      inject,
+    };
+  }
+
+  private static getConnectionProvider(): Provider {
+    return {
+      provide: AMQP_CLIENT_TOKEN,
+      useFactory: async (options: QueueModuleOptions): Promise<Connection> => AMQPService.createConnection(options),
+      inject: [QUEUE_MODULE_OPTIONS],
+    };
+  }
+
+  private static getQueueModuleOptionsProvider(options: QueueModuleOptions): Provider {
+    return {
+      provide: QUEUE_MODULE_OPTIONS,
+      useValue: options,
+    };
   }
 
   constructor(
@@ -38,6 +100,7 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
     private readonly moduleRef: ModuleRef,
   ) {}
 
+  // istanbul ignore next
   public async onModuleInit(): Promise<void> {
     logger.info('initializing queue module');
 
@@ -64,6 +127,7 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
     logger.info('queue module destroyed');
   }
 
+  // istanbul ignore next
   private async attachListeners(listeners: Array<ListenerMetadata<unknown>>): Promise<void> {
     // set up listeners
     for (const listener of listeners) {

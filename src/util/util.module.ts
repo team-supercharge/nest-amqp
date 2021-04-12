@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { ObjectValidator } from './object-validator';
-
 @Module({
-  exports: [ObjectValidator],
-  providers: [ObjectValidator],
+  exports: [],
+  providers: [],
 })
 export class UtilModule {}

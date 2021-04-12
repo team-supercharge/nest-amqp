@@ -6,11 +6,12 @@ import { IsString } from 'class-validator';
 import { MessageControl } from '../../domain';
 import { AMQPService } from '../amqp/amqp.service';
 import { QueueService } from './queue.service';
-import { ObjectValidator } from '../../util/object-validator';
 import { EventContextMock } from '../../test/event-context.mock';
 import { sleep } from '../../util/functions';
 import { SendState } from '../../enum';
-import { AMQPConnectionOptions } from '../../interface';
+import { QueueModuleOptions } from '../../interface';
+import { ObjectValidatorService } from '../object-validator/object-validator.service';
+import { QUEUE_MODULE_OPTIONS } from '../../constant';
 
 jest.mock('../amqp/amqp.service');
 jest.mock('../../domain/message-control.domain');
@@ -33,6 +34,7 @@ describe('QueueService', () => {
   const getInternallyCreatedMessageControl = (): MessageControl => {
     return (MessageControl as jest.Mock).mock.instances[0];
   };
+  const moduleOptions: QueueModuleOptions = {};
 
   class TestDto {
     @Expose()
@@ -46,18 +48,21 @@ describe('QueueService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         QueueService,
-        ObjectValidator,
+        ObjectValidatorService,
+        {
+          provide: QUEUE_MODULE_OPTIONS,
+          useValue: moduleOptions as QueueModuleOptions,
+        },
         {
           provide: AMQPService,
           useValue: {
             createReceiver: jest.fn().mockResolvedValue(jest.fn()),
             createSender: jest.fn().mockResolvedValue(new EventContextMock().sender),
             disconnect: jest.fn().mockResolvedValue(jest.fn()),
-            connectionOptions: {} as AMQPConnectionOptions,
-            getConnectionOptions(): AMQPConnectionOptions {
-              return this.connectionOptions;
+            getModuleOptions(): QueueModuleOptions {
+              return moduleOptions;
             },
-          },
+          } as Partial<AMQPService>,
         },
       ],
     }).compile();
@@ -189,7 +194,7 @@ describe('QueueService', () => {
       });
 
       it('should accept context when ValidationNullObjectException was thrown', async () => {
-        (amqpService as any).connectionOptions.acceptValidationNullObjectException = true;
+        moduleOptions.acceptValidationNullObjectException = true;
         await queueService.listen(defaultQueue, () => void 0, { type: TestDto });
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
@@ -199,8 +204,51 @@ describe('QueueService', () => {
 
         const messageControl = getInternallyCreatedMessageControl();
         expect(messageControl.accept).toHaveBeenCalled();
-        (amqpService as any).connectionOptions.acceptValidationNullObjectException = false;
+        moduleOptions.acceptValidationNullObjectException = false;
       });
+    });
+  });
+
+  describe('listen()', () => {
+    it('should work with parallelMessageProcessing option', async () => {
+      const parallelMessageProcessing = 2;
+      await queueService.listen(defaultQueue, () => void 0, { type: TestDto, parallelMessageProcessing });
+      expect((amqpService as any).createReceiver.mock.calls[0][1]).toBe(parallelMessageProcessing);
+    });
+
+    it('should work with transformerOptions option', async () => {
+      const payload = { name: 'Peter', age: 25 };
+      const callback = async (result: any) => {
+        expect(result).toEqual(payload);
+      };
+      await queueService.listen(defaultQueue, callback, {
+        type: TestDto,
+        transformerOptions: {
+          strategy: 'exposeAll',
+        },
+      });
+      const messageHandler = getMessageHandler(amqpService);
+      const eventContext = new EventContextMock();
+      eventContext.message.body = JSON.stringify(payload);
+
+      await messageHandler(eventContext);
+    });
+
+    it('should work with validatorOptions option', async () => {
+      const callback = async (result: any) => {
+        expect(result).toEqual({});
+      };
+      await queueService.listen(defaultQueue, callback, {
+        type: TestDto,
+        validatorOptions: {
+          skipNullProperties: true,
+        },
+      });
+      const messageHandler = getMessageHandler(amqpService);
+      const eventContext = new EventContextMock();
+      eventContext.message.body = JSON.stringify({ name: null });
+
+      await messageHandler(eventContext);
     });
   });
 

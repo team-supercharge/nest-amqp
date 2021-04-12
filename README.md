@@ -32,19 +32,19 @@ $ npm install --save class-transformer class-validator
 In the subsections you can see how to send and receive messages, how to handle message transfer and how to use DTO classes to message 
 payload transformation and validation.
 
-### Create connection
+### Module import and connection options
+
+To create a connection, you have to set the connection details. The library provides an easy way to set the connection details via a string
+connection URI. The library will parse this connection URI and set the appropriate connection options. Besides, you can add your custom
+connection options or other library settings with the module options.
+
+#### Create connection
 
 To create a connection, you have to import the `QueueModule.forRoot()` module into your application's root module. The `forRoot()`
-static method has 2 parameters: the first and required is the connection URI string, and the second is the *optional* connection 
-options object. The connection options object extends the [Rhea's connection options](https://www.npmjs.com/package/rhea#connectoptions) 
-and accepts these new properties:
-* **throwExceptionOnConnectionError**?: A boolean value. If it's `true` then AMQPModule will throw forward the exception which occurs 
-  during the connection creation. Default value is `false`.
-* **acceptValidationNullObjectException**?: A boolean value. If it's `true` then AMQPModule will accept the message when a
-  `ValidationNullObjectException` error was thrown. (ValidationNullObjectException will be thrown when message body is null). Otherwise the
-  message will be rejected on `ValidationNullObjectException` error. Default value is `false`.
+static method has 2 parameters: the first and required is the connection URI string, and the second is the *optional* module 
+options object. To see the available module options, scroll down. Here is the example: 
 
-> Note: the AMQPModule package does not support multiple connection!
+> Note: the @team-supercharge/nest-amqp package does not support multiple connection!
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -52,13 +52,95 @@ import { QueueModule } from '@team-supercharge/nest-amqp';
 
 @Module({
   imports: [
+    QueueModule.forRoot('amqp://user:password@localhost:5672'),
+    // ...
+  ],
+})
+export class AppModule {}
+```
+
+#### Create connection with asynchronous module configuration
+
+Generally we are using environment variables to configure our application. Nest provides the 
+[ConfigService](https://docs.nestjs.com/techniques/configuration) to use these env variables nicely. If you would like to configure the
+AMQP module with env variables, or you are using another asynchronous way to get the configuration, then you have to use the 
+`forRootAsync()` static method instead of `forRoot()` on the `QueueModule` class. To see the available module options, scroll down. 
+Here is an example:
+
+> Note: the @team-supercharge/nest-amqp package does not support multiple connection!
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { QueueModule, QueueModuleOptions } from '@team-supercharge/nest-amqp';
+
+@Module({
+  imports: [
+    QueueModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService): QueueModuleOptions => ({
+        connectionUri: configService.get<string>('AMQP_CONNECTION_URI'),
+        connectionOptions: {
+          transport: 'tcp'
+        }
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+Instead of `useFactory` you can use `useClass` or `useExisting` to set module options. You can see the examples in the 
+[test file](https://github.com/team-supercharge/nest-amqp/tree/master/src/queue.module.spec.ts).
+
+#### Module options
+
+The module options object needs to be added to the `forRoot()` or `forRootAsync()` static method. The possible options can be these:
+* **throwExceptionOnConnectionError**?: A boolean value. If it's `true` then AMQPModule will throw forward the exception which occurs
+  during the connection creation. Default value is `false`.
+* **acceptValidationNullObjectException**?: A boolean value. If it's `true` then AMQPModule will accept the message when a
+  `ValidationNullObjectException` error was thrown. (ValidationNullObjectException will be thrown when message body is null). Otherwise the
+  message will be rejected on `ValidationNullObjectException` error. Default value is `false`.
+* **connectionUri**?: It is an optional string property. This is required only when you are use the `forRootAsync()` method or the 
+  `forRoot()` method with only an object argument.
+* **connectionOptions**?: It is an optional object. With this you can set 
+  [Rhea's connection options](https://www.npmjs.com/package/rhea#connectoptions) options which will be passed to the `Connection` object 
+  during connection creation. The default value is `{}`.
+
+First basic example:
+```typescript
+@Module({
+  imports: [
     QueueModule.forRoot(
       'amqp://user:password@localhost:5672', 
       { 
-        throwExceptionOnConnectionError: true
+        throwExceptionOnConnectionError: true,
+        connectionOptions: {
+          transport: 'tcp'
+        }
       }
     ),
-    // ...
+  ],
+})
+export class AppModule {}
+```
+
+Second example with asynchronous configuration:
+```typescript
+@Module({
+  imports: [
+    QueueModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService): QueueModuleOptions => ({
+        connectionUri: configService.get<string>('AMQP_CONNECTION_URI'),
+        throwExceptionOnConnectionError: true,
+        connectionOptions: {
+          transport: 'tcp'
+        }
+      }),
+      inject: [ConfigService],
+    }),
   ],
 })
 export class AppModule {}

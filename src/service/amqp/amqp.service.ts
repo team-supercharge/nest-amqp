@@ -1,13 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import { AwaitableSender, Connection, ConnectionEvents, EventContext, Receiver, ReceiverEvents, SenderEvents } from 'rhea-promise';
-
 import { URL } from 'url';
-import { Logger } from '../../util';
-import { AMQPConnectionOptions } from '../../interface';
 
-export const AMQP_CLIENT_TOKEN = 'AMQP_CLIENT';
-export const AMQP_CONNECTION_RECONNECT = 'amqp_connection_reconnect';
+import { Logger } from '../../util';
+import { QueueModuleOptions } from '../../interface';
+import { AMQP_CLIENT_TOKEN, AMQP_CONNECTION_RECONNECT, QUEUE_MODULE_OPTIONS } from '../../constant';
 
 /**
  * Can create a single connection and manage the senders and receivers for it.
@@ -22,13 +20,6 @@ export class AMQPService {
   public static readonly eventEmitter: EventEmitter = new EventEmitter();
 
   /**
-   * Connection options object for `rhea-promise` Connection and internal options
-   * @protected
-   * @static
-   */
-  protected static connectionOptions: AMQPConnectionOptions = {};
-
-  /**
    * Parses the connection URI and connect to the message broker by the given
    * information.
    *
@@ -36,24 +27,21 @@ export class AMQPService {
    * attempt to reconnect to the message broker but only once.
    *
    * ```ts
-   * const connection = await AMQPService.createConnection('amqp://user:password@localhost:5672');
+   * const connection = await AMQPService.createConnection({ connectionUri: 'amqp://user:password@localhost:5672' });
    * ```
    *
-   * @param {string} connectionUri The URI which contains the main connection settings.
-   * @param {AMQPConnectionOptions} [connectionOptions] Options for the `rhea-promise` Connection.
+   * @param {QueueModuleOptions} [options] Options for the module.
    * @return {Connection} The created `rhea-promise` Connection.
    * @static
    */
-  public static async createConnection(connectionUri: string, connectionOptions: AMQPConnectionOptions = {}): Promise<Connection> {
-    if (Object.prototype.toString.call(connectionOptions) !== '[object Object]') {
+  public static async createConnection(options: QueueModuleOptions): Promise<Connection> {
+    if (Object.prototype.toString.call(options) !== '[object Object]') {
       throw new Error('AMQPModule connection options must an object');
     }
 
-    AMQPService.connectionOptions = connectionOptions;
-
     logger.info('creating AMQP client');
 
-    const { throwExceptionOnConnectionError, ...rheaConnectionOptions } = connectionOptions;
+    const { throwExceptionOnConnectionError, connectionUri, ...rheaConnectionOptions } = options;
     const { protocol, username, password, hostname, port } = new URL(connectionUri);
 
     logger.info('initializing client connection to', {
@@ -73,6 +61,7 @@ export class AMQPService {
       ...rheaConnectionOptions,
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     connection.on(ConnectionEvents.connectionOpen, (_: EventContext) => {
       logger.info('connection opened');
     });
@@ -122,7 +111,10 @@ export class AMQPService {
     return connection;
   }
 
-  constructor(@Inject(AMQP_CLIENT_TOKEN) private readonly connection: Connection) {}
+  constructor(
+    @Inject(QUEUE_MODULE_OPTIONS) private readonly moduleOptions: QueueModuleOptions,
+    @Inject(AMQP_CLIENT_TOKEN) private readonly connection: Connection,
+  ) {}
 
   /**
    * Closes the created connection.
@@ -139,21 +131,21 @@ export class AMQPService {
   /**
    * Returns the connection object with which the AMQP connection was created.
    *
-   * @return {AMQPConnectionOptions} Connection options.
+   * @return {QueueModuleOptions} Connection options.
    */
-  public getConnectionOptions(): AMQPConnectionOptions {
-    return { ...AMQPService.connectionOptions };
+  public getModuleOptions(): QueueModuleOptions {
+    return { ...this.moduleOptions };
   }
 
   /**
    * Creates a sender object which will send the message to the given queue.
    *
-   * @param {string} queue Name of the queue.
+   * @param {string} queueName Name of the queue.
    * @return {AwaitableSender} Sender.
    */
-  public async createSender(queue: string): Promise<AwaitableSender> {
+  public async createSender(queueName: string): Promise<AwaitableSender> {
     const sender = await this.connection.createAwaitableSender({
-      target: queue,
+      target: queueName,
     });
 
     sender.on(SenderEvents.senderOpen, (context: EventContext) => {
@@ -183,12 +175,12 @@ export class AMQPService {
   /**
    * Creates a receiver object which will send the message to the given queue.
    *
-   * @param {string} source Name of the queue.
+   * @param {string} queueName Name of the queue.
    * @param {number} credits How many message can be processed parallel.
    * @param {function(context: EventContext): Promise<void>} onMessage Function what will be invoked when a message arrives.
    * @return {Receiver} Receiver.
    */
-  public async createReceiver(source: string, credits: number, onMessage: (context: EventContext) => Promise<void>): Promise<Receiver> {
+  public async createReceiver(queueName: string, credits: number, onMessage: (context: EventContext) => Promise<void>): Promise<Receiver> {
     const onError = (context: EventContext) => {
       logger.error('receiver errored', {
         source: context.receiver.address,
@@ -199,7 +191,7 @@ export class AMQPService {
     const receiver: Receiver = await this.connection.createReceiver({
       onError,
       onMessage,
-      source,
+      source: queueName,
       autoaccept: false,
       credit_window: 0,
     });
