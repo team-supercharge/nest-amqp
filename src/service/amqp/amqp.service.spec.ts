@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import MockInstance = jest.MockInstance;
 
 jest.mock('rhea-promise');
 
@@ -7,6 +8,7 @@ import { Connection, ConnectionEvents, ReceiverEvents, SenderEvents } from 'rhea
 import { EventContextMock } from '../../test/event-context.mock';
 import { AMQP_CLIENT_TOKEN, QUEUE_MODULE_OPTIONS } from '../../constant';
 import { QueueModuleOptions } from '../../interface';
+import { NestAmqpInvalidConnectionProtocolException } from '../../exception';
 
 import { AMQPService } from './amqp.service';
 
@@ -21,6 +23,10 @@ describe('AMQPService', () => {
   let senderEvents: Array<{ event: SenderEvents; callback: (context: any) => any }> = [];
   let connectionOpenMock: jest.Mock = jest.fn().mockResolvedValue(null);
   const receiverEvents: Array<{ event: ReceiverEvents; callback: (context: any) => any }> = [];
+  const getLastMockCall = (obj: MockInstance<any, any>) => {
+    const mockCalls = obj.mock.calls;
+    return mockCalls[mockCalls.length - 1];
+  };
 
   beforeAll(() => {
     // mock the Connection constructor
@@ -88,6 +94,34 @@ describe('AMQPService', () => {
 
   it('should create throw error if connection options is not a valid object', async () => {
     await expect(AMQPService.createConnection(null)).rejects.toThrow(/connection options must an object/);
+  });
+
+  describe('connection protocol', () => {
+    it('should work with amqp:// protocol', async () => {
+      await AMQPService.createConnection({ connectionUri: 'amqp://localhost:5672' });
+      expect(getLastMockCall(Connection as any)[0]).toEqual(expect.objectContaining({ transport: 'tcp' }));
+    });
+
+    it('should work with amqps:// protocol', async () => {
+      await AMQPService.createConnection({ connectionUri: 'amqps://localhost:5672' });
+      expect(getLastMockCall(Connection as any)[0]).toEqual(expect.objectContaining({ transport: 'ssl' }));
+    });
+
+    it('should work with amqp+ssl:// protocol', async () => {
+      await AMQPService.createConnection({ connectionUri: 'amqp+ssl://localhost:5672' });
+      expect(getLastMockCall(Connection as any)[0]).toEqual(expect.objectContaining({ transport: 'ssl' }));
+    });
+
+    it('should work with amqp+tls:// protocol', async () => {
+      await AMQPService.createConnection({ connectionUri: 'amqp+tls://localhost:5672' });
+      expect(getLastMockCall(Connection as any)[0]).toEqual(expect.objectContaining({ transport: 'tls' }));
+    });
+
+    it('should throw error on unsupported protocol', async () => {
+      await expect(AMQPService.createConnection({ connectionUri: 'stomp://localhost:5672' })).rejects.toThrowError(
+        NestAmqpInvalidConnectionProtocolException,
+      );
+    });
   });
 
   describe('connection options', () => {

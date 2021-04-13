@@ -1,11 +1,23 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { EventEmitter } from 'events';
-import { AwaitableSender, Connection, ConnectionEvents, EventContext, Receiver, ReceiverEvents, SenderEvents } from 'rhea-promise';
+import {
+  AwaitableSender,
+  Connection,
+  ConnectionEvents,
+  ConnectionOptions,
+  EventContext,
+  Receiver,
+  ReceiverEvents,
+  SenderEvents,
+} from 'rhea-promise';
 import { URL } from 'url';
 
 import { Logger } from '../../util';
 import { QueueModuleOptions } from '../../interface';
 import { AMQP_CLIENT_TOKEN, AMQP_CONNECTION_RECONNECT, QUEUE_MODULE_OPTIONS } from '../../constant';
+import { NestAmqpInvalidConnectionProtocolException } from '../../exception';
+
+type PropType<TObj, TProp extends keyof TObj> = TObj[TProp];
 
 /**
  * Can create a single connection and manage the senders and receivers for it.
@@ -52,10 +64,28 @@ export class AMQPService {
       port,
     });
 
+    let transport: PropType<ConnectionOptions, 'transport'>;
+    switch (protocol) {
+      case 'amqp:':
+        transport = 'tcp';
+        break;
+      case 'amqps:':
+        transport = 'ssl';
+        break;
+      case 'amqp+ssl:':
+        transport = 'ssl';
+        break;
+      case 'amqp+tls:':
+        transport = 'tls';
+        break;
+      default:
+        throw new NestAmqpInvalidConnectionProtocolException(`Not supported connection protocol: ${protocol}`);
+    }
+
     const connection = new Connection({
       password,
       username,
-      transport: protocol === 'amqps:' ? 'ssl' : 'tcp',
+      transport,
       host: hostname,
       port: Number.parseInt(port, 10),
       ...rheaConnectionOptions,
