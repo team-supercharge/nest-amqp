@@ -42,7 +42,8 @@ connection options or other library settings with the module options.
 
 To create a connection, you have to import the `QueueModule.forRoot()` module into your application's root module. The `forRoot()`
 static method has 2 parameters: the first and required is the connection URI string, and the second is the *optional* module 
-options object. To see the available module options, scroll down. Here is the example: 
+options object, or you can just pass the module options object to it. To see the available module options, scroll down.
+Here is the example: 
 
 > Note: the @team-supercharge/nest-amqp package does not support multiple connection!
 
@@ -53,7 +54,8 @@ import { QueueModule } from '@team-supercharge/nest-amqp';
 @Module({
   imports: [
     QueueModule.forRoot('amqp://user:password@localhost:5672'),
-    // ...
+    // or alternatively
+    // QueueModule.forRoot({ connectionUri: 'amqp://user:password@localhost:5672' }),
   ],
 })
 export class AppModule {}
@@ -81,7 +83,7 @@ import { QueueModule, QueueModuleOptions } from '@team-supercharge/nest-amqp';
       useFactory: (configService: ConfigService): QueueModuleOptions => ({
         connectionUri: configService.get<string>('AMQP_CONNECTION_URI'),
         connectionOptions: {
-          transport: 'tcp'
+          transport: configService.get<string>('AMQP_CONNECTION_TRANSPORT'),
         }
       }),
       inject: [ConfigService],
@@ -136,7 +138,7 @@ Second example with asynchronous configuration:
         connectionUri: configService.get<string>('AMQP_CONNECTION_URI'),
         throwExceptionOnConnectionError: true,
         connectionOptions: {
-          transport: 'tcp'
+          transport: configService.get<string>('AMQP_CONNECTION_TRANSPORT'),
         }
       }),
       inject: [ConfigService],

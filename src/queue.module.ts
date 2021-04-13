@@ -17,8 +17,12 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
     exports: [QueueService],
   };
 
-  public static forRoot(connectionUri: string, options?: Omit<QueueModuleOptions, 'connectionUri'>): DynamicModule {
-    const queueModuleOptionsProvider = QueueModule.getQueueModuleOptionsProvider({ ...options, connectionUri });
+  public static forRoot(options: QueueModuleOptions): DynamicModule;
+  public static forRoot(connectionUri: string, options?: Omit<QueueModuleOptions, 'connectionUri'>): DynamicModule;
+  public static forRoot(connectionUri: string | QueueModuleOptions, options?: Omit<QueueModuleOptions, 'connectionUri'>): DynamicModule {
+    const queueModuleOptionsProvider = QueueModule.getQueueModuleOptionsProvider(
+      typeof connectionUri === 'string' ? { ...options, connectionUri } : connectionUri,
+    );
     const connectionProvider = QueueModule.getConnectionProvider();
 
     Object.assign(QueueModule.moduleDefinition, {
