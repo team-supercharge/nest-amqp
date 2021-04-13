@@ -12,6 +12,7 @@ import { Logger } from './util';
 @Module({})
 export class QueueModule implements OnModuleInit, OnModuleDestroy {
   private static readonly moduleDefinition: DynamicModule = {
+    global: false,
     module: QueueModule,
     providers: [AMQPService, QueueService, MetadataScanner, ListenerExplorer, ObjectValidatorService],
     exports: [QueueService],
@@ -20,12 +21,12 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
   public static forRoot(options: QueueModuleOptions): DynamicModule;
   public static forRoot(connectionUri: string, options?: Omit<QueueModuleOptions, 'connectionUri'>): DynamicModule;
   public static forRoot(connectionUri: string | QueueModuleOptions, options?: Omit<QueueModuleOptions, 'connectionUri'>): DynamicModule {
-    const queueModuleOptionsProvider = QueueModule.getQueueModuleOptionsProvider(
-      typeof connectionUri === 'string' ? { ...options, connectionUri } : connectionUri,
-    );
+    const moduleOptions = typeof connectionUri === 'string' ? { ...options, connectionUri } : connectionUri;
+    const queueModuleOptionsProvider = QueueModule.getQueueModuleOptionsProvider(moduleOptions);
     const connectionProvider = QueueModule.getConnectionProvider();
 
     Object.assign(QueueModule.moduleDefinition, {
+      global: !!moduleOptions.isGlobal,
       providers: [queueModuleOptionsProvider, ...QueueModule.moduleDefinition.providers, connectionProvider],
     });
 
@@ -37,6 +38,7 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
     const asyncProviders = this.createAsyncProviders(options);
 
     Object.assign(QueueModule.moduleDefinition, {
+      global: !!options.isGlobal,
       imports: options.imports,
       providers: [...asyncProviders, ...QueueModule.moduleDefinition.providers, connectionProvider],
     });

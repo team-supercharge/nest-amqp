@@ -7,6 +7,7 @@ export interface QueueModuleOptionsFactory {
 }
 
 export interface QueueModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'> {
+  isGlobal?: boolean;
   useExisting?: Type<QueueModuleOptionsFactory>;
   useClass?: Type<QueueModuleOptionsFactory>;
   useFactory?: (...args: any[]) => Promise<QueueModuleOptions> | QueueModuleOptions;
