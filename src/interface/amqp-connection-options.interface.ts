@@ -6,6 +6,7 @@ import { ConnectionOptions } from 'rhea-promise';
  * @publicApi
  */
 export type QueueModuleOptions = {
+  isGlobal?: boolean;
   throwExceptionOnConnectionError?: boolean;
   acceptValidationNullObjectException?: boolean;
   connectionUri?: string;

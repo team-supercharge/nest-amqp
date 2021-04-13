@@ -53,6 +53,17 @@ describe('QueueModule', () => {
   })
   class TestQueueConfigModule {}
 
+  @Injectable()
+  class TestGlobalFeatureService {
+    constructor(public readonly queueService: QueueService) {}
+  }
+
+  @Module({
+    providers: [TestGlobalFeatureService],
+    exports: [TestGlobalFeatureService],
+  })
+  class TestGlobalFeatureModule {}
+
   afterEach(async () => {
     await module.close();
     (QueueModule as any).moduleDefinition.imports = [];
@@ -156,6 +167,40 @@ describe('QueueModule', () => {
       const amqpService = module.get<AMQPService>(AMQPService);
 
       expect(amqpService.getModuleOptions()).toEqual({ connectionUri });
+    });
+  });
+
+  describe('make to global module', () => {
+    it(`should be global module with .forRoot() import`, async () => {
+      module = await Test.createTestingModule({
+        imports: [QueueModule.forRoot(connectionUri, { isGlobal: true }), TestGlobalFeatureModule],
+      }).compile();
+      const testGlobalFeatureService = module.get<TestGlobalFeatureService>(TestGlobalFeatureService);
+
+      expect(testGlobalFeatureService.queueService).toBeDefined();
+    });
+
+    it(`should be global module with .forRootAsync() import`, async () => {
+      module = await Test.createTestingModule({
+        imports: [
+          QueueModule.forRootAsync({
+            isGlobal: true,
+            useFactory: () => ({ connectionUri }),
+          }),
+          TestGlobalFeatureModule,
+        ],
+      }).compile();
+      const testGlobalFeatureService = module.get<TestGlobalFeatureService>(TestGlobalFeatureService);
+
+      expect(testGlobalFeatureService.queueService).toBeDefined();
+    });
+
+    it(`should use .forFeature() when not global module`, async () => {
+      const moduleBuilder = Test.createTestingModule({
+        imports: [QueueModule.forRoot(connectionUri, { isGlobal: false }), TestGlobalFeatureModule],
+      });
+
+      await expect(moduleBuilder.compile()).rejects.toThrow(/Nest can't resolve dependencies of the TestGlobalFeatureService/);
     });
   });
 });

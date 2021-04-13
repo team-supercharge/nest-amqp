@@ -121,6 +121,9 @@ Instead of `useFactory` you can use `useClass` or `useExisting` to set module op
 #### Module options
 
 The module options object needs to be added to the `forRoot()` or `forRootAsync()` static method. The possible options can be these:
+* **isGlobal**?: A boolean value. If this property is `true`, then you can skip the import with`.forFeature()` method in the feature 
+  modules, because the public services will be available in all modules which imports the root module. Default value is
+  `false`. (You can read more about it on [Nest modules page](https://docs.nestjs.com/modules#global-modules))
 * **throwExceptionOnConnectionError**?: A boolean value. If it's `true` then AMQPModule will throw forward the exception which occurs
   during the connection creation. Default value is `false`.
 * **acceptValidationNullObjectException**?: A boolean value. If it's `true` then AMQPModule will accept the message when a
@@ -138,7 +141,8 @@ First basic example:
   imports: [
     QueueModule.forRoot(
       'amqp://user:password@localhost:5672', 
-      { 
+      {
+        isGlobal: true,
         throwExceptionOnConnectionError: true,
         connectionOptions: {
           transport: 'tcp'
@@ -155,6 +159,9 @@ Second example with asynchronous configuration:
 @Module({
   imports: [
     QueueModule.forRootAsync({
+      // in case of `QueueModule.forRootAsync`, isGlobal property goes here and
+      // not into the object returned by 'useFactory' or 'useClass' or 'useExisting'
+      isGlobal: true, 
       imports: [ConfigModule],
       useFactory: (configService: ConfigService): QueueModuleOptions => ({
         connectionUri: configService.get<string>('AMQP_CONNECTION_URI'),
