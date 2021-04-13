@@ -60,13 +60,31 @@ describe('QueueModule', () => {
   });
 
   describe('forRoot()', () => {
-    it('should import as sync root module', async () => {
+    it('should work only with a connection URI', async () => {
       module = await Test.createTestingModule({
         imports: [QueueModule.forRoot(connectionUri)],
       }).compile();
       const amqpService = module.get<AMQPService>(AMQPService);
 
       expect(amqpService.getModuleOptions()).toEqual(moduleOptions);
+    });
+
+    it('should work with connection URI and module options arguments', async () => {
+      module = await Test.createTestingModule({
+        imports: [QueueModule.forRoot(connectionUri, { throwExceptionOnConnectionError: true })],
+      }).compile();
+      const amqpService = module.get<AMQPService>(AMQPService);
+
+      expect(amqpService.getModuleOptions()).toEqual({ throwExceptionOnConnectionError: true, connectionUri });
+    });
+
+    it('should work only with module options', async () => {
+      module = await Test.createTestingModule({
+        imports: [QueueModule.forRoot({ connectionUri, throwExceptionOnConnectionError: true })],
+      }).compile();
+      const amqpService = module.get<AMQPService>(AMQPService);
+
+      expect(amqpService.getModuleOptions()).toEqual({ throwExceptionOnConnectionError: true, connectionUri });
     });
   });
 
