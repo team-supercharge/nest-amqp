@@ -38,6 +38,28 @@ To create a connection, you have to set the connection details. The library prov
 connection URI. The library will parse this connection URI and set the appropriate connection options. Besides, you can add your custom
 connection options or other library settings with the module options.
 
+#### Connection URI
+
+This library provides an easier way to set the connection options with a connection URI: you can describe the connection settings with a 
+URI. The library will parse the URI and set the corresponding options. Here you can see the description of the URI:
+```bash
+protocol://[username:password@]host:port
+```
+
+The `username` and `password` components are optional, with these you can set the authentication credentials to the message queue server.
+
+You can set custom protocol what will set the connection transport automatically, so you don't have to add the `transport` to the connection
+options object. The protocol can be:
+* **amqp**: in this case the `transport` will be `tcp`
+* **amqps**: in this case the `transport` will be `ssl`
+* **amqp+ssl**: in this case the `transport` will be `ssl`
+* **amqp+tls**: in this case the `transport` will be `tls`
+
+Examples:
+* `amqp://localhost:5672`
+* `amqps://user:password@my-server.com:5672`
+* `amqp+tls://admin:secret@127.0.0.1:5672`
+
 #### Create connection
 
 To create a connection, you have to import the `QueueModule.forRoot()` module into your application's root module. The `forRoot()`
