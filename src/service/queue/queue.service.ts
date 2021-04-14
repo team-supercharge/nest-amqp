@@ -248,7 +248,7 @@ export class QueueService {
     for (const receiver of receivers) {
       await receiver.close();
 
-      while (receiver.credit === 0) {
+      while (receiver.connection.isOpen() && receiver.credit === 0) {
         logger.log(`waiting to finish queue processing`);
         await sleep(1000);
       }

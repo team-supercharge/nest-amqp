@@ -298,6 +298,9 @@ describe('QueueService', () => {
     (amqpService.createReceiver as jest.Mock).mockResolvedValue(new EventContextMock().receiver);
     await queueService.listen(defaultQueue, () => void 0, {});
     const receiver = getReceiver(queueService, defaultQueue);
+    (receiver as any).connection = {
+      isOpen: () => true,
+    };
     (sleep as jest.Mock).mockImplementation(() => {
       (receiver as any).credit = 1;
     });
