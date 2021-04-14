@@ -127,6 +127,7 @@ export class AMQPService {
 
     connection.on(ConnectionEvents.disconnected, (context: EventContext) => {
       const error = context ? context.error || context._context.error : null;
+      // istanbul ignore next
       logger.warn(`connection closed by peer: ${error ? error.message ?? '' : ''}`);
     });
 

@@ -183,6 +183,50 @@ describe('AMQPService', () => {
     jest.clearAllTimers();
   });
 
+  describe(`'disconnect' connection event`, () => {
+    it('should log error message during connection closing', async () => {
+      const customError = {
+        counter: 0,
+        get message() {
+          this.counter++;
+          return 'msg';
+        },
+      };
+      const eventContext = new EventContextMock({ error: customError });
+      const disconnectedEventHandler = connectionEvents.find(item => {
+        return item.event === ConnectionEvents.disconnected;
+      }).callback;
+
+      disconnectedEventHandler(eventContext);
+      expect(customError.counter).toBe(2);
+    });
+
+    it('should log context error message during connection closing', async () => {
+      const customError = {
+        counter: 0,
+        get message() {
+          this.counter++;
+          return 'msg';
+        },
+      };
+      const eventContext = new EventContextMock({ _context: { error: customError } });
+      const disconnectedEventHandler = connectionEvents.find(item => {
+        return item.event === ConnectionEvents.disconnected;
+      }).callback;
+
+      disconnectedEventHandler(eventContext);
+      expect(customError.counter).toBe(2);
+    });
+
+    it('should log nothing during connection closing', async () => {
+      const disconnectedEventHandler = connectionEvents.find(item => {
+        return item.event === ConnectionEvents.disconnected;
+      }).callback;
+
+      expect(() => disconnectedEventHandler(null)).not.toThrow();
+    });
+  });
+
   it('should successfully disconnect', async () => {
     const connection = module.get<Connection>(AMQP_CLIENT_TOKEN);
 
