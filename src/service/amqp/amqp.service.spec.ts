@@ -9,8 +9,12 @@ import { EventContextMock } from '../../test/event-context.mock';
 import { AMQP_CLIENT_TOKEN, QUEUE_MODULE_OPTIONS } from '../../constant';
 import { QueueModuleOptions } from '../../interface';
 import { NestAmqpInvalidConnectionProtocolException } from '../../exception';
+import { Logger } from '../../util';
+import { LoggerMock } from '../../test/logger.mock';
 
 import { AMQPService } from './amqp.service';
+
+Logger.overrideLogger(new LoggerMock());
 
 describe('AMQPService', () => {
   const connectionUri = 'amqp://localhost:5672';
@@ -148,7 +152,7 @@ describe('AMQPService', () => {
 
     await AMQPService.createConnection({ connectionUri: connectionSecureUri });
 
-    connectionEvents.forEach(event => event.callback({}));
+    connectionEvents.forEach(event => event.callback({ error: new Error('test') }));
 
     expect(connectionEvents.length).toBeGreaterThan(0);
   });

@@ -12,10 +12,14 @@ import { SendState } from '../../enum';
 import { QueueModuleOptions } from '../../interface';
 import { ObjectValidatorService } from '../object-validator/object-validator.service';
 import { QUEUE_MODULE_OPTIONS } from '../../constant';
+import { Logger } from '../../util';
+import { LoggerMock } from '../../test/logger.mock';
 
 jest.mock('../amqp/amqp.service');
 jest.mock('../../domain/message-control.domain');
 jest.mock('../../util/functions/sleep.function');
+
+Logger.overrideLogger(new LoggerMock());
 
 describe('QueueService', () => {
   const defaultQueue = 'test';

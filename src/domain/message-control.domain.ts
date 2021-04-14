@@ -1,6 +1,6 @@
 import { AmqpError, EventContext } from 'rhea-promise';
 
-import { Logger } from '../util';
+import { getLoggerContext, Logger } from '../util';
 
 /**
  * Class to handle easily the state of a message transfer and status.
@@ -28,7 +28,7 @@ export class MessageControl {
       return;
     }
 
-    logger.trace('accepting message');
+    logger.verbose('accepting message');
 
     this.context.delivery.accept();
     this.handleSettlement();
@@ -52,7 +52,7 @@ export class MessageControl {
       return;
     }
 
-    logger.trace('rejecting message with reason', reason);
+    logger.verbose(`rejecting message with reason: ${reason.toString()}`);
 
     // condition and description will not be displayed anywhere
     const error: AmqpError = {
@@ -81,7 +81,7 @@ export class MessageControl {
       return;
     }
 
-    logger.trace('releasing message');
+    logger.verbose('releasing message');
 
     // NOTE: need to be handled this way to trigger retry logic
     this.context.delivery.release({
@@ -112,10 +112,10 @@ export class MessageControl {
     try {
       return typeof reason !== 'string' ? JSON.stringify(reason) : reason;
     } catch (error) {
-      logger.error('could not parse error reason', reason);
+      logger.error(`could not parse error reason: ${reason}`);
 
       return 'unknown';
     }
   }
 }
-const logger = new Logger(MessageControl.name);
+const logger = new Logger(getLoggerContext(MessageControl.name));

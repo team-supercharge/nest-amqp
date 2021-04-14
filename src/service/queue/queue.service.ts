@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AwaitableSender, Delivery, EventContext, Message, Receiver } from 'rhea-promise';
 
-import { extendObject, sleep, tryParseJSON, ValidationNullObjectException, Logger } from '../../util';
+import { extendObject, sleep, tryParseJSON, ValidationNullObjectException, Logger, getLoggerContext } from '../../util';
 import { MessageControl } from '../../domain';
 import { SendState } from '../../enum';
 import { AMQPService, ObjectValidatorService } from '..';
@@ -47,7 +47,7 @@ export class QueueService {
     const validatorOptions = !!options && options.validatorOptions ? options.validatorOptions : {};
 
     const messageValidator = async (context: EventContext, control: MessageControl) => {
-      logger.trace(`incoming message on queue ${queueName}`);
+      logger.verbose(`incoming message on queue '${queueName}'`);
 
       const body: any = context.message.body;
       let object: T;
@@ -107,9 +107,14 @@ export class QueueService {
 
           // istanbul ignore else
           if (Array.isArray(parsedError)) {
-            logger.error(`validation error on ${queueName}`, error, { parsed });
+            logger.error(`validation error on '${queueName}' (payload: ${JSON.stringify(parsed)}): ${error.message}`, error);
           } else {
-            logger.error(`unexpected error happened during validation process on ${queueName}`, error, { parsed });
+            logger.error(
+              `unexpected error happened during validation process on '${queueName}' (payload: ${JSON.stringify(
+                parsed,
+              )}): ${error.toString()}`,
+              error,
+            );
           }
 
           // can't validate, need to reject message
@@ -124,27 +129,27 @@ export class QueueService {
         const startTime = new Date();
         await callback(object, control);
         const durationInMs = new Date().getTime() - startTime.getTime();
-        logger.info(`handling ${queueName} finished in ${durationInMs} (ms)`);
+        logger.log(`handling '${queueName}' finished in ${durationInMs} (ms)`);
 
         // handle auto-accept when message is otherwise not handled
         if (!control.isHandled()) {
           control.accept();
         }
       } catch (error) {
-        logger.error(`error in callback on ${queueName}`, error);
+        logger.error(`error in callback on queue '${queueName}': ${error.message}`, error);
 
         // can't process callback, need to reject message
         control.reject(error.message);
       }
 
-      logger.trace(`handled message on queue ${queueName}`);
+      logger.verbose(`handled message on queue '${queueName}'`);
     };
 
     const messageHandler = async (context: EventContext) => {
       const control: MessageControl = new MessageControl(context);
 
       messageValidator(context, control).catch(error => {
-        logger.error('unexpected error happened during message validation', error, { queueName: context.receiver.address });
+        logger.error(`unexpected error happened during message validation on '${context.receiver.address}': ${error.message}`, error);
         control.reject(error.message);
       });
     };
@@ -222,7 +227,7 @@ export class QueueService {
       logger.debug(`setting ttl on message with ${options.ttl} ms`);
     }
 
-    logger.trace(`outgoing message to queue ${target}`, messageToSend);
+    logger.verbose(`outgoing message to queue '${target}', payload: ${JSON.stringify(messageToSend)}`);
 
     // send message
     const delivery: Delivery = await sender.send(messageToSend);
@@ -235,7 +240,7 @@ export class QueueService {
    * processes to complete.
    */
   public async shutdown(): Promise<void> {
-    logger.info('shutting down queue processing');
+    logger.log('shutting down queue processing');
 
     // stop receiving
     const receivers: Receiver[] = Array.from(this.receivers.values());
@@ -244,7 +249,7 @@ export class QueueService {
       await receiver.close();
 
       while (receiver.credit === 0) {
-        logger.info(`waiting to finish queue processing`);
+        logger.log(`waiting to finish queue processing`);
         await sleep(1000);
       }
     }
@@ -252,7 +257,7 @@ export class QueueService {
     // disconnect queue connection
     await this.amqpService.disconnect();
 
-    logger.info('queue processing stopped');
+    logger.log('queue processing stopped');
   }
 
   /**
@@ -314,4 +319,4 @@ export class QueueService {
   }
 }
 
-const logger = new Logger(QueueService.name);
+const logger = new Logger(getLoggerContext(QueueService.name));

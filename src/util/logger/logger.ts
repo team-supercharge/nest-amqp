@@ -1,31 +1,31 @@
-import debug from 'debug';
+import { Logger as NestLogger, LoggerService } from '@nestjs/common';
 
-export class Logger {
-  private static logInfo: debug.Debugger = debug('nest-amqp:info');
-  private static logWarn: debug.Debugger = debug('nest-amqp:warn');
-  private static logError: debug.Debugger = debug('nest-amqp:error');
-  private static logDebug: debug.Debugger = debug('nest-amqp:debug');
-  private static logTrace: debug.Debugger = debug('nest-amqp:trace');
+export class Logger implements LoggerService {
+  private static instance: LoggerService = new NestLogger();
 
-  constructor(namespace = '') {}
+  constructor(private readonly context = '') {}
 
-  public info(...args: any[]): void {
-    Logger.logInfo.apply(Logger.logInfo, args as any);
+  public static overrideLogger(logger: LoggerService) {
+    Logger.instance = logger;
   }
 
-  public warn(...args: any[]): void {
-    Logger.logWarn.apply(Logger.logWarn, args as any);
+  public log(message: any, context?: string): void {
+    Logger.instance.log(message, context || this.context);
   }
 
-  public error(...args: any[]): void {
-    Logger.logError.apply(Logger.logError, args as any);
+  public error(message: any, trace?: string, context?: string): void {
+    Logger.instance.error(message, trace, context || this.context);
   }
 
-  public debug(...args: any[]): void {
-    Logger.logDebug.apply(Logger.logDebug, args as any);
+  public warn(message: any, context?: string): void {
+    Logger.instance.warn(message, context || this.context);
   }
 
-  public trace(...args: any[]) {
-    Logger.logTrace.apply(Logger.logTrace, args as any);
+  public debug(message: any, context?: string): void {
+    Logger.instance.debug(message, context || this.context);
+  }
+
+  public verbose(message: any, context?: string): void {
+    Logger.instance.verbose(message, context || this.context);
   }
 }
