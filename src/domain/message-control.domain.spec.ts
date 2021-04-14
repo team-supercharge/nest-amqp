@@ -1,6 +1,10 @@
 import { EventContext } from 'rhea-promise';
 
 import { MessageControl } from './message-control.domain';
+import { Logger } from '../util';
+import { LoggerMock } from '../test/logger.mock';
+
+Logger.overrideLogger(new LoggerMock());
 
 const mockEventContext = (): any => ({
   delivery: {

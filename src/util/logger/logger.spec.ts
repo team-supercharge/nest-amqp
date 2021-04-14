@@ -1,49 +1,57 @@
+import { LoggerService } from '@nestjs/common';
+
 import { Logger } from './logger';
+import { getLoggerContext } from './get-logger-context';
 
 describe('Logger', () => {
   let logger: Logger;
+  let loggerMock: LoggerService;
 
   beforeEach(() => {
-    logger = new Logger();
+    logger = new Logger(getLoggerContext('test'));
+    loggerMock = {
+      log: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      verbose: jest.fn(),
+    };
+    Logger.overrideLogger(loggerMock);
   });
 
-  it('should log info messages', () => {
-    (Logger as any).logInfo = jest.fn();
+  it('should log log messages', () => {
+    logger.log('message', 'context');
 
-    logger.info('message');
-
-    expect((Logger as any).logInfo).toBeCalled();
+    expect(loggerMock.log).toBeCalled();
   });
 
   it('should log warn messages', () => {
-    (Logger as any).logWarn = jest.fn();
-
     logger.warn('message');
 
-    expect((Logger as any).logWarn).toBeCalled();
+    expect(loggerMock.warn).toBeCalled();
   });
 
   it('should log error messages', () => {
-    (Logger as any).logError = jest.fn();
-
     logger.error('message');
 
-    expect((Logger as any).logError).toBeCalled();
+    expect(loggerMock.error).toBeCalled();
   });
 
   it('should log debug messages', () => {
-    (Logger as any).logDebug = jest.fn();
-
     logger.debug('message');
 
-    expect((Logger as any).logDebug).toBeCalled();
+    expect(loggerMock.debug).toBeCalled();
   });
 
-  it('should log trace messages', () => {
-    (Logger as any).logTrace = jest.fn();
+  it('should log verbose messages', () => {
+    logger.verbose('message');
 
-    logger.trace('message');
+    expect(loggerMock.verbose).toBeCalled();
+  });
 
-    expect((Logger as any).logTrace).toBeCalled();
+  it('should log without context', () => {
+    logger = new Logger();
+
+    expect((logger as any).context).toBe('');
   });
 });

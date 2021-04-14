@@ -4,9 +4,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 
 import { ListenerExplorer } from './listener.explorer';
 import { Listen } from '../decorator';
+import { LoggerMock } from '../test/logger.mock';
+import { Logger } from '../util';
+
+Logger.overrideLogger(new LoggerMock());
 
 describe('ListenerExplorer', () => {
   let service: ListenerExplorer;
+  let module: TestingModule;
 
   @Injectable()
   class TestListener {
@@ -19,11 +24,15 @@ describe('ListenerExplorer', () => {
   class TestModule {}
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       imports: [TestModule],
       providers: [ListenerExplorer, MetadataScanner],
     }).compile();
     service = module.get<ListenerExplorer>(ListenerExplorer);
+  });
+
+  afterEach(() => {
+    module.close();
   });
 
   it('should be defined', () => {

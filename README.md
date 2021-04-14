@@ -124,6 +124,10 @@ The module options object needs to be added to the `forRoot()` or `forRootAsync(
 * **isGlobal**?: A boolean value. If this property is `true`, then you can skip the import with`.forFeature()` method in the feature 
   modules, because the public services will be available in all modules which imports the root module. Default value is
   `false`. (You can read more about it on [Nest modules page](https://docs.nestjs.com/modules#global-modules))
+* **logger**?: A custom object or class instance which implements the `LoggerService` interface from the `@nestjs/common` package. 
+  With this option, you can use your own logging method to log information in `@team-supercharge/nest-amqp` library. If it is 
+  not set then the library will use Nest's `Logger` service to logging. You can see a full example below in the readme. 
+  Default value is `undefined`.
 * **throwExceptionOnConnectionError**?: A boolean value. If it's `true` then AMQPModule will throw forward the exception which occurs
   during the connection creation. Default value is `false`.
 * **acceptValidationNullObjectException**?: A boolean value. If it's `true` then AMQPModule will accept the message when a
@@ -172,6 +176,47 @@ Second example with asynchronous configuration:
       }),
       inject: [ConfigService],
     }),
+  ],
+})
+export class AppModule {}
+```
+
+### Custom logger
+
+You can use your own logger solution in the library. To do this, you have to create a class which implements the `LoggerService` interface 
+from the `@nestjs/common` package. After that you can add the class instance to the module options, and the logging will work with your 
+custom solution. The `@team-supercharge/nest-amqp` library will use this one instance/object to log everything inside, so it is good if you 
+use the `context` argument in the log methods to determine who is logging currently. Here is an example:
+
+```typescript
+import { LoggerService, Module } from "@nestjs/common";
+
+class MyLogger implements LoggerService {
+  public log(message: any, context: string): void {
+    console.log(`[${context}] ${message}`);
+  }
+  public error(message: any, trace: string, context: string): void {
+    console.error(`[${context}] ${message}`);
+  }
+  public warn(message: any, context: string): void {
+    console.warn(`[${context}] ${message}`);
+  }
+  public debug(message: any, context: string): void {
+    console.debug(`[${context}] ${message}`);
+  }
+  public verbose(message: any, context: string): void {
+    console.log(`[${context}] ${message}`);
+  }
+}
+
+@Module({
+  imports: [
+    QueueModule.forRoot(
+      'amqp://user:password@localhost:5672',
+      {
+        logger: new MyLogger()
+      }
+    ),
   ],
 })
 export class AppModule {}

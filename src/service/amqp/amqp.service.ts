@@ -12,7 +12,7 @@ import {
 } from 'rhea-promise';
 import { URL } from 'url';
 
-import { Logger } from '../../util';
+import { getLoggerContext, Logger } from '../../util';
 import { QueueModuleOptions } from '../../interface';
 import { AMQP_CLIENT_TOKEN, AMQP_CONNECTION_RECONNECT, QUEUE_MODULE_OPTIONS } from '../../constant';
 import { NestAmqpInvalidConnectionProtocolException } from '../../exception';
@@ -51,18 +51,20 @@ export class AMQPService {
       throw new Error('AMQPModule connection options must an object');
     }
 
-    logger.info('creating AMQP client');
+    logger.log('creating AMQP client');
 
     const { throwExceptionOnConnectionError, connectionUri, ...rheaConnectionOptions } = options;
     const { protocol, username, password, hostname, port } = new URL(connectionUri);
 
-    logger.info('initializing client connection to', {
-      protocol,
-      username,
-      password: '*****',
-      hostname,
-      port,
-    });
+    logger.log(
+      `initializing client connection to ${JSON.stringify({
+        protocol,
+        username,
+        password: '*****',
+        hostname,
+        port,
+      })}`,
+    );
 
     let transport: PropType<ConnectionOptions, 'transport'>;
     switch (protocol) {
@@ -93,11 +95,11 @@ export class AMQPService {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     connection.on(ConnectionEvents.connectionOpen, (_: EventContext) => {
-      logger.info('connection opened');
+      logger.log('connection opened');
     });
 
     connection.on(ConnectionEvents.connectionClose, (context: EventContext) => {
-      logger.info('connection closed', context.error || '');
+      logger.log('connection closed');
 
       if (!!context.error) {
         setTimeout(async () => {
@@ -105,7 +107,7 @@ export class AMQPService {
           await context.connection
             .open()
             .then(() => {
-              logger.info('connection successfully reopened');
+              logger.log('connection successfully reopened');
               const emitted = AMQPService.eventEmitter.emit(AMQP_CONNECTION_RECONNECT);
 
               if (!emitted) {
@@ -113,30 +115,31 @@ export class AMQPService {
               }
             })
             .catch(error => {
-              logger.error('reopening connection failed with error', error);
+              logger.error(`reopening connection failed with error: ${error.message}`, error);
             });
         }, 1000);
       }
     });
 
     connection.on(ConnectionEvents.connectionError, (context: EventContext) => {
-      logger.error('connection errored', context.error);
+      logger.error(`connection errored: ${context.error.message}`);
     });
 
     connection.on(ConnectionEvents.disconnected, (context: EventContext) => {
-      logger.warn('connection closed by peer', context);
+      const error = context ? context.error || context._context.error : null;
+      logger.warn(`connection closed by peer: ${error ? error.message ?? '' : ''}`);
     });
 
     try {
       await connection.open();
     } catch (err) {
-      logger.error('connection error', err);
+      logger.error(`connection error: ${err.message}`, err);
 
       if (throwExceptionOnConnectionError === true) {
         throw err;
       }
     }
-    logger.info('created AMQP connection');
+    logger.log('created AMQP connection');
 
     return connection;
   }
@@ -150,12 +153,12 @@ export class AMQPService {
    * Closes the created connection.
    */
   public async disconnect(): Promise<void> {
-    logger.info('disconnecting from queue');
+    logger.log('disconnecting from queue');
 
     // disconnect queue
     await this.connection.close();
 
-    logger.info('queue disconnected');
+    logger.log('queue disconnected');
   }
 
   /**
@@ -179,24 +182,24 @@ export class AMQPService {
     });
 
     sender.on(SenderEvents.senderOpen, (context: EventContext) => {
-      logger.info('sender opened', { name: context.sender.address });
+      logger.log(`sender opened: ${JSON.stringify({ name: context.sender.address })}`);
     });
 
     sender.on(SenderEvents.senderClose, (context: EventContext) => {
-      logger.info('sender closed', { name: context.sender.address });
+      logger.log(`sender closed: ${JSON.stringify({ name: context.sender.address })}`);
     });
 
     sender.on(SenderEvents.senderError, (context: EventContext) => {
-      logger.error('sender errored', {
-        name: context.sender.address,
-        error: context.sender.error,
-      });
+      logger.error(
+        `sender errored: ${JSON.stringify({
+          name: context.sender.address,
+          error: context.sender.error,
+        })}`,
+      );
     });
 
     sender.on(SenderEvents.senderDraining, (context: EventContext) => {
-      logger.info('sender requested to drain its credits by remote peer', {
-        name: context.sender.address,
-      });
+      logger.log(`sender requested to drain its credits by remote peer: ${JSON.stringify({ name: context.sender.address })}`);
     });
 
     return sender;
@@ -212,10 +215,12 @@ export class AMQPService {
    */
   public async createReceiver(queueName: string, credits: number, onMessage: (context: EventContext) => Promise<void>): Promise<Receiver> {
     const onError = (context: EventContext) => {
-      logger.error('receiver errored', {
-        source: context.receiver.address,
-        error: context.receiver.error,
-      });
+      logger.error(
+        `receiver errored: ${JSON.stringify({
+          source: context.receiver.address,
+          error: context.receiver.error,
+        })}`,
+      );
     };
 
     const receiver: Receiver = await this.connection.createReceiver({
@@ -229,7 +234,7 @@ export class AMQPService {
     receiver.addCredit(credits);
 
     receiver.on(ReceiverEvents.receiverOpen, (context: EventContext) => {
-      logger.info('receiver opened', { source: context.receiver.address });
+      logger.log(`receiver opened: ${JSON.stringify({ source: context.receiver.address })}`);
 
       const currentCredits = context.receiver.credit;
 
@@ -241,34 +246,30 @@ export class AMQPService {
     });
 
     receiver.on(ReceiverEvents.receiverClose, (context: EventContext) => {
-      logger.info('receiver closed', { queue: context.receiver.address });
+      logger.log(`receiver closed: ${JSON.stringify({ queue: context.receiver.address })}`);
     });
 
     receiver.on(ReceiverEvents.receiverDrained, (context: EventContext) => {
-      logger.debug('remote peer for receiver drained', {
-        queue: context.receiver.address,
-      });
+      logger.debug(`remote peer for receiver drained: ${JSON.stringify({ queue: context.receiver.address })}`);
     });
 
     receiver.on(ReceiverEvents.receiverFlow, (context: EventContext) => {
-      logger.debug('flow event received for receiver', {
-        queue: context.receiver.address,
-      });
+      logger.debug(`flow event received for receiver: ${JSON.stringify({ queue: context.receiver.address })}`);
     });
 
     receiver.on(ReceiverEvents.settled, (context: EventContext) => {
-      logger.debug('message has been settled by remote', {
-        queue: context.receiver.address,
-      });
+      logger.debug(`message has been settled by remote: ${JSON.stringify({ queue: context.receiver.address })}`);
     });
 
-    logger.info('receiver created', {
-      credits: receiver.credit,
-      source: receiver.source,
-    });
+    logger.log(
+      `receiver created: ${JSON.stringify({
+        credits: receiver.credit,
+        source: receiver.source,
+      })}`,
+    );
 
     return receiver;
   }
 }
 
-const logger = new Logger(AMQPService.name);
+const logger = new Logger(getLoggerContext(AMQPService.name));

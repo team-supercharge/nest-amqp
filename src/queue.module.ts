@@ -1,4 +1,4 @@
-import { DynamicModule, Module, OnModuleDestroy, OnModuleInit, Provider, Type } from '@nestjs/common';
+import { DynamicModule, Inject, Module, OnModuleDestroy, OnModuleInit, Provider, Type } from '@nestjs/common';
 import { Connection } from 'rhea-promise';
 import { MetadataScanner, ModuleRef } from '@nestjs/core';
 
@@ -7,7 +7,7 @@ import { AMQPService, ObjectValidatorService, QueueService } from './service';
 import { ListenerExplorer } from './explorer';
 import { AMQP_CLIENT_TOKEN, AMQP_CONNECTION_RECONNECT, QUEUE_MODULE_OPTIONS } from './constant';
 import { ListenerMetadata } from './domain';
-import { Logger } from './util';
+import { getLoggerContext, Logger } from './util';
 
 @Module({})
 export class QueueModule implements OnModuleInit, OnModuleDestroy {
@@ -101,6 +101,7 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
   }
 
   constructor(
+    @Inject(QUEUE_MODULE_OPTIONS) private readonly moduleOptions: QueueModuleOptions,
     private readonly queueService: QueueService,
     private readonly listenerExplorer: ListenerExplorer,
     private readonly moduleRef: ModuleRef,
@@ -108,36 +109,40 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
 
   // istanbul ignore next
   public async onModuleInit(): Promise<void> {
-    logger.info('initializing queue module');
+    logger.log('initializing queue module');
+
+    if (this.moduleOptions.logger) {
+      Logger.overrideLogger(this.moduleOptions.logger);
+    }
 
     // find everything marked with @Listen
     const listeners = this.listenerExplorer.explore();
     await this.attachListeners(listeners);
 
     AMQPService.eventEmitter.on(AMQP_CONNECTION_RECONNECT, () => {
-      logger.info('reattaching receivers to connection');
+      logger.log('reattaching receivers to connection');
       this.queueService.clearSenderAndReceiverLinks();
       this.attachListeners(listeners)
-        .then(() => logger.info('receivers reattached'))
+        .then(() => logger.log('receivers reattached'))
         .catch(error => logger.error('error while reattaching listeners', error));
     });
 
-    logger.info('queue module initialized');
+    logger.log('queue module initialized');
   }
 
   public async onModuleDestroy(): Promise<void> {
-    logger.info('destroying queue module');
+    logger.log('destroying queue module');
 
     await this.queueService.shutdown();
 
-    logger.info('queue module destroyed');
+    logger.log('queue module destroyed');
   }
 
   // istanbul ignore next
   private async attachListeners(listeners: Array<ListenerMetadata<unknown>>): Promise<void> {
     // set up listeners
     for (const listener of listeners) {
-      logger.debug('attaching listener for @Listen', listener);
+      logger.debug(`attaching listener for @Listen: ${JSON.stringify(listener)}`);
 
       // fetch instance from DI framework
       const target = this.moduleRef.get(listener.targetName, { strict: false });
@@ -146,4 +151,4 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
     }
   }
 }
-const logger = new Logger(QueueModule.name);
+const logger = new Logger(getLoggerContext(QueueModule.name));
