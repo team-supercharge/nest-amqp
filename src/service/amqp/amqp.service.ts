@@ -54,7 +54,10 @@ export class AMQPService {
     logger.log('creating AMQP client');
 
     const { throwExceptionOnConnectionError, connectionUri, ...rheaConnectionOptions } = options;
-    const { protocol, username, password, hostname, port } = new URL(connectionUri);
+    const parsedConnectionUri = new URL(connectionUri);
+    const { protocol, hostname, port } = parsedConnectionUri;
+    const username = decodeURIComponent(parsedConnectionUri.username);
+    const password = decodeURIComponent(parsedConnectionUri.password);
 
     logger.log(
       `initializing client connection to ${JSON.stringify({
