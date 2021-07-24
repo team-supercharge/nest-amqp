@@ -96,6 +96,16 @@ describe('AMQPService', () => {
     expect((connection as any).open).toHaveBeenCalled();
   });
 
+  it('should create connection with special chars in username and password', async () => {
+    const username = 'Jörg';
+    const password = 'Gt|N#R=6$5(TE@rH"Pvc$7a';
+    const connectionUri = `amqps://${encodeURIComponent(username)}:${encodeURIComponent(password)}@localhost:5672`;
+
+    await AMQPService.createConnection({ connectionUri });
+
+    expect(getLastMockCall(Connection as any)[0]).toEqual(expect.objectContaining({ username, password }));
+  });
+
   it('should create throw error if connection options is not a valid object', async () => {
     await expect(AMQPService.createConnection(null)).rejects.toThrow(/connection options must an object/);
   });

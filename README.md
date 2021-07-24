@@ -48,6 +48,19 @@ protocol://[username:password@]host:port
 
 The `username` and `password` components are optional, with these you can set the authentication credentials to the message queue server.
 
+> Note: if you would like to use special characters in username or password, then you have to `encodeURIComponent()` these values, because
+> the library will decode the values right before connection creation. If you don't encode these values, then you will get a URL parse 
+> error.
+> 
+> If you use environment variables to connection username or password, then use the env values with `encodeURIComponent()` as well.
+>
+> Example: 
+> ```
+> const username = encodeURIComponent('Jörg');
+> const password = encodeURIComponent('Gt|N#R=6$5(TE@rH"Pvc$7a');
+> const connectionUri = `amqps://${username}:${password}@localhost:5672`;
+> ```
+
 You can set custom protocol what will set the connection transport automatically, so you don't have to add the `transport` to the connection
 options object. The protocol can be:
 * **amqp**: in this case the `transport` will be `tcp`
