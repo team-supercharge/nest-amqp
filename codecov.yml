@@ -1,3 +1,3 @@
 codecov:
   comment:
-    layout: "diff, flags, files"
+    layout: 'diff, flags, files'
