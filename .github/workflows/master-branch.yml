@@ -1,4 +1,4 @@
-name: Master branch check
+name: Build status
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - master
 jobs:
   build-status:
-    name: Build status
+    name: Build status on master branch
     runs-on: ubuntu-latest
     steps:
       - name: Git checkout
