@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### 2.0.1 (2021-07-24)
+
+
+### Bug Fixes
+
+* **amqp-uri:** support special chars in username + password (fix [#24](https://github.com/team-supercharge/nest-amqp/issues/24)) ([59ae5e5](https://github.com/team-supercharge/nest-amqp/commit/59ae5e53ce32b06f2227103cb0abf64666d80711))
+
 ## [2.0.0](https://github.com/team-supercharge/nest-amqp/compare/v1.3.0...v2.0.0) (2021-04-14)
 
 
