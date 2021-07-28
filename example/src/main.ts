@@ -13,7 +13,7 @@ bootstrap().catch(err => {
   console.error('Error during the bootstrap:', err);
 });
 
-async function gracefulShutdown(signal: string): Promise<void> {
+async function gracefulShutdown(_signal: string): Promise<void> {
   try {
     if (app) {
       await app.close();
