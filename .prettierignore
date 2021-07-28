@@ -3,3 +3,5 @@ example
 .git
 CHANGELOG.md
 README.md
+coverage
+dist
