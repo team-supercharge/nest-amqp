@@ -30,6 +30,8 @@ jobs:
           eslint_args: src/**/*.ts
           eslint_extensions: ts
           prettier: true
+          prettier_args: src/**/*.ts
+          prettier_extensions: ts
       - name: Test
         run: npm test
       - name: Production build
