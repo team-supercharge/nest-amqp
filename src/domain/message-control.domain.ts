@@ -3,27 +3,36 @@ import { AmqpError, EventContext } from 'rhea-promise';
 import { getLoggerContext, Logger } from '../util';
 
 /**
- * Class to handle easily the state of a message transfer and status.
+ * Class to manage the state of a message transfer and it's status.
  *
- * @publicApi
+ * @public
  */
 export class MessageControl {
   /**
-   * If the message has already been processed once, do not process it again.
+   * Indicate if the message has already been processed.
+   * If it is, do not process it again.
+   *
+   * @private
+   * @property
    */
   private handled = false;
 
+  /**
+   * @constructor
+   * @param {EventContext} context Event context received from Rhea related to the message
+   */
   constructor(private readonly context: EventContext) {}
 
   /**
    * Use `accept` when message has been handled normally.
+   *
    *
    * NOTE: When no explicit `accept` / `reject` / `release` call has been made
    * in the callback, message will be automatically accepted.
    */
   public accept(): void {
     if (this.handled) {
-      logger.error('message already handled');
+      logger.log('message already handled');
 
       return;
     }
@@ -47,7 +56,7 @@ export class MessageControl {
    */
   public reject(reason: string | Record<string, any>): void {
     if (this.handled) {
-      logger.error('message already handled');
+      logger.log('message already handled');
 
       return;
     }
@@ -76,7 +85,7 @@ export class MessageControl {
    */
   public release(): void {
     if (this.handled) {
-      logger.error('message already handled');
+      logger.log('message already handled');
 
       return;
     }
@@ -100,6 +109,11 @@ export class MessageControl {
     return this.handled;
   }
 
+  /**
+   * Marking Message as handled, signaling that we are ready for the next message
+   *
+   * @private
+   */
   private handleSettlement() {
     // need to add a credit after successful handling
     this.context.receiver.addCredit(1);
@@ -108,6 +122,14 @@ export class MessageControl {
     this.handled = true;
   }
 
+  /**
+   * AMQ can only handle string reason messages, need to parse the message
+   *
+   * @param {string | object} reason Reason for rejecting the message
+   * @returns {string} parsed message
+   *
+   * @private
+   */
   private getRejectReason(reason: string | Record<string, any>): string {
     try {
       return typeof reason !== 'string' ? JSON.stringify(reason) : reason;

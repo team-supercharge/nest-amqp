@@ -1,3 +1,3 @@
-export * from './amqp-connection-options.interface';
+export * from './queue-module-async-options.interface';
+export * from './queue-module-options.interface';
 export * from './queue.interface';
-export * from './queue-options.interface';

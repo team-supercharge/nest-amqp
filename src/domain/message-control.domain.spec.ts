@@ -33,7 +33,7 @@ describe('MessageControl', () => {
       expect(eventContext.delivery.accept).toHaveBeenCalled();
     });
 
-    it('should do nothing on a handled control', () => {
+    it('should do nothing on an already handled control', () => {
       messageControl.accept();
       messageControl.accept();
 
@@ -49,7 +49,7 @@ describe('MessageControl', () => {
       expect(eventContext.delivery.reject).toHaveBeenCalled();
     });
 
-    it('should do nothing on a handled control', () => {
+    it('should do nothing on an already handled control', () => {
       const reason = 'Reason';
       messageControl.reject(reason);
       messageControl.reject(reason);
@@ -73,7 +73,7 @@ describe('MessageControl', () => {
       expect(eventContext.delivery.release).toHaveBeenCalled();
     });
 
-    it('should do nothing on a handled control', () => {
+    it('should do nothing on an already handled control', () => {
       messageControl.release();
       messageControl.release();
 
