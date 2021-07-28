@@ -14,6 +14,6 @@ describe('tryParseJSON()', () => {
   });
 
   it('should return false on parse error', () => {
-    expect(tryParseJSON('text')).toEqual(false);
+    expect(tryParseJSON('text')).toEqual(undefined);
   });
 });

@@ -40,8 +40,8 @@ describe('ListenerExplorer', () => {
   });
 
   it('should explore the modules', () => {
-    const providers = service.explore();
+    const listenerMethods = service.explore();
 
-    expect(providers).toHaveLength(1);
+    expect(listenerMethods).toHaveLength(1);
   });
 });

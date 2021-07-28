@@ -1,5 +1,5 @@
 import { Listen } from './listen.decorator';
-import { QUEUE_LISTEN_METADATA_KEY } from '../explorer';
+import { QUEUE_LISTEN_METADATA_KEY } from '../constant';
 import { ListenOptions } from '../interface';
 
 describe('@Listen', () => {
