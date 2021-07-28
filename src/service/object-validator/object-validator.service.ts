@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ClassTransformOptions, plainToClass } from 'class-transformer';
 import { validate, ValidationError, ValidatorOptions } from 'class-validator';
 
-import { ValidationNullObjectException } from '../../util/exceptions';
+import { ValidationException, ValidationNullObjectException } from '../../util/exceptions';
 
 export interface ObjectValidationOptions {
   transformerOptions?: ClassTransformOptions;
@@ -15,32 +15,36 @@ export interface ObjectValidationOptions {
 @Injectable()
 export class ObjectValidatorService {
   /**
-   * Validate and transform a source object by a decorated class. It works with
+   * Transforme and validate a source object by a decorated class. It works with
    * the `class-validator` and the `class-transformer` packages.
    *
-   * @param {new (...params: any[]) => T} type Class with validation and transformation decorators.
-   * @param {any} attributes Source object what will be transformed and validated.
+   * By default, the validator will strip every property that is not explicitly exposed
+   *
+   * @param {new (...params: unknown[]) => T} type Class with validation and transformation decorators.
+   * @param {unknown} plain Source object which will be transformed and validated.
    * @param {ObjectValidationOptions} options Transformation and validations options.
-   * @return {Promise<T>} options Validated and transformed object.
+   *
+   * @return {Promise<T>} The transformed and validated object.
+   *
    * {@link https://www.npmjs.com/package/class-transformer class-transformer}
    * {@link https://www.npmjs.com/package/class-validator class-validator}
+   *
+   * @public
    */
-  public async validate<T>(type: new (...params: any[]) => T, attributes: any, options?: ObjectValidationOptions): Promise<T> {
-    const transformerOptions = options && options.transformerOptions ? options.transformerOptions : {};
-    const validatorOptions = options && options.validatorOptions ? options.validatorOptions : {};
-
-    if (attributes === null || attributes === undefined) {
+  public async validate<T>(type: new (...params: unknown[]) => T, plain: unknown, options?: ObjectValidationOptions): Promise<T> {
+    if (plain === null || plain === undefined) {
       throw new ValidationNullObjectException(type.name);
     }
 
-    const object: T = plainToClass<T, any>(type, attributes, {
-      strategy: 'excludeAll',
-      ...transformerOptions,
-    });
+    const transformerOptions = options?.transformerOptions ?? {};
+    const validatorOptions = options?.validatorOptions ?? {};
+
+    const object: T = plainToClass<T, unknown>(type, plain, { strategy: 'excludeAll', ...transformerOptions });
+
     const errors = await validate(object, validatorOptions);
 
     if (errors.length !== 0) {
-      throw new Error(JSON.stringify(errors));
+      throw new ValidationException(errors);
     }
 
     return object;
@@ -50,20 +54,27 @@ export class ObjectValidatorService {
    * Validate and transform a list of objects by a decorated class. It works
    * with the `class-validator` and the `class-transformer` packages.
    *
-   * @param {new (...params: any[]) => T} type Class with validation and transformation decorators.
-   * @param {any[]} attributes Source object what will be transformed and validated.
+   * By default, the validator will strip every property that is not explicitly exposed
+   *
+   * @param {new (...params: unknown[]) => T} type Class with validation and transformation decorators.
+   * @param {unknown[]} plains Source array of object which will be transformed and validated.
    * @param {ObjectValidationOptions} options Transformation and validations options.
-   * @return {Promise<T[]>} options Validated and transformed object.
+   *
+   * @return {Promise<T[]>} Validated and transformed array.
+   *
    * {@link https://www.npmjs.com/package/class-transformer class-transformer}
    * {@link https://www.npmjs.com/package/class-validator class-validator}
+   *
+   * @public
    */
-  public async validateArray<T>(type: new (...params: any[]) => T, attributes: any[], options?: ObjectValidationOptions): Promise<T[]> {
-    const transformerOptions = options && options.transformerOptions ? options.transformerOptions : {};
-    const validatorOptions = options && options.validatorOptions ? options.validatorOptions : {};
-    const objects: T[] = plainToClass<T, any>(type, attributes, {
-      strategy: 'excludeAll',
-      ...transformerOptions,
-    });
+  public async validateArray<T>(type: new (...params: unknown[]) => T, plains: unknown[], options?: ObjectValidationOptions): Promise<T[]> {
+    if (plains === null || plains === undefined) {
+      throw new ValidationNullObjectException(type.name);
+    }
+
+    const transformerOptions = options?.transformerOptions ?? {};
+    const validatorOptions = options?.validatorOptions ?? {};
+    const objects: T[] = plainToClass<T, unknown>(type, plains, { strategy: 'excludeAll', ...transformerOptions });
     const errors: ValidationError[] = [];
 
     for (const object of objects) {
@@ -71,7 +82,7 @@ export class ObjectValidatorService {
     }
 
     if (errors.length !== 0) {
-      throw new Error(JSON.stringify(errors));
+      throw new ValidationException(errors);
     }
 
     return objects;

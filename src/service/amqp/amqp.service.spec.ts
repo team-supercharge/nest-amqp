@@ -167,7 +167,7 @@ describe('AMQPService', () => {
     expect(connectionEvents.length).toBeGreaterThan(0);
   });
 
-  it('should reconnect when connection close because of error', async () => {
+  it('should reconnect when connection closed because of error', async () => {
     const eventContext = new EventContextMock({ error: new Error(), connection: { open: jest.fn().mockResolvedValue(true) } });
     const connectionCloseEventHandler = connectionEvents.find(item => {
       return item.event === ConnectionEvents.connectionClose;
@@ -177,6 +177,19 @@ describe('AMQPService', () => {
     connectionCloseEventHandler(eventContext);
     jest.runOnlyPendingTimers();
     expect(eventContext.connection.open).toHaveBeenCalled();
+    jest.clearAllTimers();
+  });
+
+  it('should not try to reconnect when connection closed without error', async () => {
+    const eventContext = new EventContextMock({ error: null, connection: { open: jest.fn().mockResolvedValue(true) } });
+    const connectionCloseEventHandler = connectionEvents.find(item => {
+      return item.event === ConnectionEvents.connectionClose;
+    }).callback;
+
+    jest.useFakeTimers();
+    connectionCloseEventHandler(eventContext);
+    jest.runOnlyPendingTimers();
+    expect(eventContext.connection.open).toBeCalledTimes(0);
     jest.clearAllTimers();
   });
 

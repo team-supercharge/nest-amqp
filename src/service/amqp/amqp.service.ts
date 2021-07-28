@@ -17,12 +17,10 @@ import { QueueModuleOptions } from '../../interface';
 import { AMQP_CLIENT_TOKEN, AMQP_CONNECTION_RECONNECT, QUEUE_MODULE_OPTIONS } from '../../constant';
 import { NestAmqpInvalidConnectionProtocolException } from '../../exception';
 
-type PropType<TObj, TProp extends keyof TObj> = TObj[TProp];
-
 /**
  * Can create a single connection and manage the senders and receivers for it.
  *
- * @publicApi
+ * @public
  */
 @Injectable()
 export class AMQPService {
@@ -69,23 +67,7 @@ export class AMQPService {
       })}`,
     );
 
-    let transport: PropType<ConnectionOptions, 'transport'>;
-    switch (protocol) {
-      case 'amqp:':
-        transport = 'tcp';
-        break;
-      case 'amqps:':
-        transport = 'ssl';
-        break;
-      case 'amqp+ssl:':
-        transport = 'ssl';
-        break;
-      case 'amqp+tls:':
-        transport = 'tls';
-        break;
-      default:
-        throw new NestAmqpInvalidConnectionProtocolException(`Not supported connection protocol: ${protocol}`);
-    }
+    const transport: ConnectionOptions['transport'] = this.getTransport(protocol);
 
     const connection = new Connection({
       password,
@@ -96,51 +78,56 @@ export class AMQPService {
       ...rheaConnectionOptions,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     connection.on(ConnectionEvents.connectionOpen, (_: EventContext) => {
       logger.log('connection opened');
     });
 
     connection.on(ConnectionEvents.connectionClose, (context: EventContext) => {
-      logger.log('connection closed');
-
-      if (!!context.error) {
-        setTimeout(async () => {
-          context.connection.emit(ConnectionEvents.disconnected);
-          await context.connection
-            .open()
-            .then(() => {
-              logger.log('connection successfully reopened');
-              const emitted = AMQPService.eventEmitter.emit(AMQP_CONNECTION_RECONNECT);
-
-              if (!emitted) {
-                logger.warn('reconnect event not emitted');
-              }
-            })
-            .catch(error => {
-              logger.error(`reopening connection failed with error: ${error.message}`, error);
-            });
-        }, 1000);
+      if (!context.error) {
+        logger.log('connection closed');
+        return;
       }
+
+      // If there was an error, try to reconnect in 1 second
+      logger.error(`connection closed with error: ${context.error.name} - ${context.error.message}`, context.error.stack);
+
+      const timeoutHandler = setTimeout(async () => {
+        context.connection.emit(ConnectionEvents.disconnected);
+        await context.connection
+          .open()
+          .then(() => {
+            logger.log('connection successfully reopened');
+            const emitted = AMQPService.eventEmitter.emit(AMQP_CONNECTION_RECONNECT);
+
+            // istanbul ignore next: mocking out the event emitter is unnecessary
+            if (!emitted) {
+              logger.warn('reconnect event not emitted');
+            }
+          })
+          .catch(error => {
+            logger.error(`reopening connection failed with error: ${error.message}`, error);
+          });
+        clearTimeout(timeoutHandler);
+      }, 1000);
     });
 
     connection.on(ConnectionEvents.connectionError, (context: EventContext) => {
-      logger.error(`connection errored: ${context.error.message}`);
+      logger.error(`connection errored: ${context.error.message}`, context.error.stack);
     });
 
     connection.on(ConnectionEvents.disconnected, (context: EventContext) => {
-      const error = context ? context.error || context._context.error : null;
+      const error = context?.error ?? context?._context?.error ?? null;
       // istanbul ignore next
-      logger.warn(`connection closed by peer: ${error ? error.message ?? '' : ''}`);
+      logger.warn(`connection closed by peer: ${error?.message ?? ''}`, error?.stack);
     });
 
     try {
       await connection.open();
-    } catch (err) {
-      logger.error(`connection error: ${err.message}`, err);
+    } catch (error) {
+      logger.error(`connection error: ${error.message}`, error);
 
       if (throwExceptionOnConnectionError === true) {
-        throw err;
+        throw error;
       }
     }
     logger.log('created AMQP connection');
@@ -177,20 +164,18 @@ export class AMQPService {
   /**
    * Creates a sender object which will send the message to the given queue.
    *
-   * @param {string} queueName Name of the queue.
+   * @param {string} queue Name of the queue.
    * @return {AwaitableSender} Sender.
    */
-  public async createSender(queueName: string): Promise<AwaitableSender> {
-    const sender = await this.connection.createAwaitableSender({
-      target: queueName,
-    });
+  public async createSender(queue: string): Promise<AwaitableSender> {
+    const sender = await this.connection.createAwaitableSender({ target: queue });
 
     sender.on(SenderEvents.senderOpen, (context: EventContext) => {
-      logger.log(`sender opened: ${JSON.stringify({ name: context.sender.address })}`);
+      logger.log(`sender for ${context.sender.address} opened`);
     });
 
     sender.on(SenderEvents.senderClose, (context: EventContext) => {
-      logger.log(`sender closed: ${JSON.stringify({ name: context.sender.address })}`);
+      logger.log(`sender for ${context.sender.address} closed`);
     });
 
     sender.on(SenderEvents.senderError, (context: EventContext) => {
@@ -203,7 +188,7 @@ export class AMQPService {
     });
 
     sender.on(SenderEvents.senderDraining, (context: EventContext) => {
-      logger.log(`sender requested to drain its credits by remote peer: ${JSON.stringify({ name: context.sender.address })}`);
+      logger.log(`sender for ${context.sender.address} requested to drain its credits by remote peer`);
     });
 
     return sender;
@@ -220,8 +205,7 @@ export class AMQPService {
   public async createReceiver(queueName: string, credits: number, onMessage: (context: EventContext) => Promise<void>): Promise<Receiver> {
     const onError = (context: EventContext) => {
       logger.error(
-        `receiver errored: ${JSON.stringify({
-          source: context.receiver.address,
+        `receiver for ${context.receiver.address} errored: ${JSON.stringify({
           error: context.receiver.error,
         })}`,
       );
@@ -238,10 +222,11 @@ export class AMQPService {
     receiver.addCredit(credits);
 
     receiver.on(ReceiverEvents.receiverOpen, (context: EventContext) => {
-      logger.log(`receiver opened: ${JSON.stringify({ source: context.receiver.address })}`);
+      logger.log(`receiver of ${context.receiver.address} opened`);
 
       const currentCredits = context.receiver.credit;
 
+      // istanbul ignore next
       if (currentCredits < credits) {
         logger.debug('receiver does not have credits, adding credits');
 
@@ -250,19 +235,19 @@ export class AMQPService {
     });
 
     receiver.on(ReceiverEvents.receiverClose, (context: EventContext) => {
-      logger.log(`receiver closed: ${JSON.stringify({ queue: context.receiver.address })}`);
+      logger.log(`receiver of ${context.receiver.address} closed`);
     });
 
     receiver.on(ReceiverEvents.receiverDrained, (context: EventContext) => {
-      logger.debug(`remote peer for receiver drained: ${JSON.stringify({ queue: context.receiver.address })}`);
+      logger.debug(`remote peer for receiver of ${context.receiver.address} drained`);
     });
 
     receiver.on(ReceiverEvents.receiverFlow, (context: EventContext) => {
-      logger.debug(`flow event received for receiver: ${JSON.stringify({ queue: context.receiver.address })}`);
+      logger.debug(`flow event received for receiver of ${context.receiver.address}`);
     });
 
     receiver.on(ReceiverEvents.settled, (context: EventContext) => {
-      logger.debug(`message has been settled by remote: ${JSON.stringify({ queue: context.receiver.address })}`);
+      logger.debug(`message has been settled by remote for receiver of ${context.receiver.address}`);
     });
 
     logger.log(
@@ -273,6 +258,26 @@ export class AMQPService {
     );
 
     return receiver;
+  }
+
+  // istanbul ignore next
+  private static getTransport(protocol: string): ConnectionOptions['transport'] {
+    switch (protocol) {
+      case 'amqp:':
+        return 'tcp';
+        break;
+      case 'amqps:':
+        return 'ssl';
+        break;
+      case 'amqp+ssl:':
+        return 'ssl';
+        break;
+      case 'amqp+tls:':
+        return 'tls';
+        break;
+      default:
+        throw new NestAmqpInvalidConnectionProtocolException(`Not supported connection protocol: ${protocol}`);
+    }
   }
 }
 

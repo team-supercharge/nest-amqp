@@ -81,7 +81,7 @@ describe('ObjectValidator', () => {
   });
 
   describe('validate array of objects', () => {
-    it('should return the valid object', async () => {
+    it('should return the valid array of objects', async () => {
       const userList = [
         { name: 'Peter', age: 20 },
         { name: 'Anna', age: 22 },
@@ -97,6 +97,14 @@ describe('ObjectValidator', () => {
       ];
 
       await expect(service.validateArray(UserDto1, userList)).rejects.toThrow('age');
+    });
+
+    it('should throw exception on null value', async () => {
+      await expect(service.validateArray(UserDto1, null)).rejects.toThrow(ValidationNullObjectException);
+    });
+
+    it('should throw exception on undefined value', async () => {
+      await expect(service.validateArray(UserDto1, undefined)).rejects.toThrow(ValidationNullObjectException);
     });
 
     it('should work with transformer options', async () => {

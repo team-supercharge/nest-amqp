@@ -32,7 +32,7 @@ describe('QueueService', () => {
   const getReceiver = (service: QueueService, queueName: string): Receiver => {
     return (service as any).receivers.get(queueName);
   };
-  const getMessageHandler = (amqpService: AMQPService): ((context: EventContext) => void) => {
+  const getMessageHandler = (amqpService: AMQPService): ((context: EventContext) => Promise<void>) => {
     return (amqpService.createReceiver as any).mock.calls[0][2];
   };
   const getInternallyCreatedMessageControl = (): MessageControl => {

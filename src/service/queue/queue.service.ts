@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { AwaitableSender, Delivery, EventContext, Message, Receiver } from 'rhea-promise';
 
-import { extendObject, sleep, tryParseJSON, ValidationNullObjectException, Logger, getLoggerContext } from '../../util';
+import {
+  extendObject,
+  sleep,
+  tryParseJSON,
+  ValidationNullObjectException,
+  Logger,
+  getLoggerContext,
+  ValidationException,
+} from '../../util';
 import { MessageControl } from '../../domain';
 import { SendState } from '../../enum';
 import { AMQPService, ObjectValidatorService } from '..';
@@ -12,8 +20,6 @@ const toString = Object.prototype.toString;
 
 /**
  * Handles queue receivers and senders for the created connection.
- *
- * @publicApi
  */
 @Injectable()
 export class QueueService {
@@ -35,6 +41,8 @@ export class QueueService {
    * @param {string} queueName Name of the queue.
    * @param {function(object: T, control: MessageControl) => Promise<void>} callback Function what will invoked when message arrives.
    * @param {ListenOptions<T>} [options] Options for message processing.
+   *
+   * @public
    */
   public async listen<T>(
     queueName: string,
@@ -89,10 +97,6 @@ export class QueueService {
           if (error instanceof ValidationNullObjectException) {
             logger.error(`null received as body on ${context.receiver.address}`);
 
-            // HACK
-            // TODO - Use control.reject for this error,
-            // once AMQ Broker can handle the difference between reject and release
-            // control.reject(error.message);
             const { acceptValidationNullObjectException } = this.amqpService.getModuleOptions();
             if (acceptValidationNullObjectException === true) {
               control.accept();
@@ -103,16 +107,16 @@ export class QueueService {
             return;
           }
 
-          const parsedError = tryParseJSON(error.message) || error.message;
-
           // istanbul ignore else
-          if (Array.isArray(parsedError)) {
-            logger.error(`validation error on '${queueName}' (payload: ${JSON.stringify(parsed)}): ${error.message}`, error);
+          if (error instanceof ValidationException) {
+            logger.error(`validation error ${queueName} (payload: ${JSON.stringify(parsed)}): ${error.message}`, error.stack);
           } else {
+            const parsedError = tryParseJSON(error.message) || error.message;
+
             logger.error(
               `unexpected error happened during validation process on '${queueName}' (payload: ${JSON.stringify(
                 parsed,
-              )}): ${error.toString()}`,
+              )}): ${parsedError.toString()}`,
               error,
             );
           }
@@ -163,13 +167,17 @@ export class QueueService {
    * @param {string} target Name of the queue.
    * @param {T} message Message body.
    * @param {SendOptions} [options] Options for message sending.
-   * @return {Promise<SendState>} State of send.
+   *
+   * @return {Promise<SendState>} Result of sending the message.
+   *
+   * @public
    */
   public async send<T = any>(target: string, message: T, options?: SendOptions): Promise<SendState> {
     // get sender
     const sender: AwaitableSender = await this.getSender(target);
     const { schedule, ...baseOptions } = options || {};
 
+    // TODO: refactor messageToSend creation using state object or state switch
     let messageToSend: Message;
 
     // scheduling
@@ -219,12 +227,14 @@ export class QueueService {
     }
 
     // add other options to the message
-    extendObject(messageToSend, baseOptions || {});
+    extendObject(messageToSend, baseOptions);
 
     // TTL handling
     // istanbul ignore if
     if (options && options.ttl) {
       logger.debug(`setting ttl on message with ${options.ttl} ms`);
+
+      messageToSend.ttl = options.ttl;
     }
 
     logger.verbose(`outgoing message to queue '${target}', payload: ${JSON.stringify(messageToSend)}`);
@@ -295,8 +305,6 @@ export class QueueService {
     } else {
       sender = await this.amqpService.createSender(target);
 
-      // TODO: handle more sender events
-
       this.senders.set(target, sender);
     }
 
@@ -307,12 +315,12 @@ export class QueueService {
     return JSON.stringify(message);
   }
 
-  private decodeMessage(message: any): any {
+  private decodeMessage(message: string | Record<string, any> | Buffer): Record<string, any> {
     if (toString.call(message) === '[object Object]') {
-      return message;
+      return message as Record<string, any>;
     }
 
-    const objectLike = message instanceof Buffer ? message.toString() : message;
+    const objectLike: string = message instanceof Buffer ? message.toString() : (message as string);
     const object = JSON.parse(objectLike);
 
     return object;

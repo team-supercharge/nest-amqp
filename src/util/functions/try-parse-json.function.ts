@@ -3,9 +3,9 @@
  * value will be returned.
  *
  * @param {string} jsonString Object as string.
- * @return {(T|boolean)} Parsed object or false.
+ * @return {(T|undefined)} Parsed object or undefined.
  */
-export function tryParseJSON<T = any>(jsonString: string): T | boolean {
+export function tryParseJSON<T = any>(jsonString: string): T | undefined {
   try {
     const o = JSON.parse(jsonString);
 
@@ -17,6 +17,6 @@ export function tryParseJSON<T = any>(jsonString: string): T | boolean {
       return o;
     }
   } catch (e) {
-    return false;
+    return undefined;
   }
 }
