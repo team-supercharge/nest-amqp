@@ -4,7 +4,7 @@ export enum SendState {
    */
   Success,
   /**
-   * Message failed to send
+   * Message failed to send, Broker did not accept the message
    */
   Failed,
 }
