@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## 2.1.0 (2021-08-01)
+
+
+### Features
+
+* **nest:** add support to Nest v8 ([edb044f](https://github.com/team-supercharge/nest-amqp/commit/edb044f71422d20e4dc5e864517d4f412183cb2e))
+
 ### 2.0.2 (2021-07-28)
 
 ### 2.0.1 (2021-07-24)
