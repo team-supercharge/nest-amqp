@@ -41,7 +41,7 @@ export class ObjectValidatorService {
 
     const object: T = plainToClass<T, unknown>(type, plain, { strategy: 'excludeAll', ...transformerOptions });
 
-    const errors = await validate(object, validatorOptions);
+    const errors = await validate(object as any, validatorOptions);
 
     if (errors.length !== 0) {
       throw new ValidationException(errors);
@@ -78,7 +78,7 @@ export class ObjectValidatorService {
     const errors: ValidationError[] = [];
 
     for (const object of objects) {
-      errors.push(...(await validate(object, validatorOptions)));
+      errors.push(...(await validate(object as any, validatorOptions)));
     }
 
     if (errors.length !== 0) {
