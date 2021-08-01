@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## 2.2.0 (2021-08-01)
+
+
+### Features
+
+* support latest version of class-validator + class-transformer ([53a87dd](https://github.com/team-supercharge/nest-amqp/commit/53a87dde0504c22aa3fcead02e2e777181bd2a86))
+
 ## 2.1.0 (2021-08-01)
 
 
