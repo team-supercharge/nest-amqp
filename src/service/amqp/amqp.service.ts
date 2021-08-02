@@ -92,7 +92,7 @@ export class AMQPService {
       logger.error(`connection closed with error: ${context.error.name} - ${context.error.message}`, context.error.stack);
 
       const timeoutHandler = setTimeout(async () => {
-        context.connection.emit(ConnectionEvents.disconnected);
+        (context.connection as any)._connection.dispatch(ConnectionEvents.disconnected, void 0);
         await context.connection
           .open()
           .then(() => {

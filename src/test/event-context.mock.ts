@@ -11,6 +11,9 @@ export class EventContextMock implements EventContext {
   public connection: any = {
     emit: jest.fn(),
     open: jest.fn(),
+    _connection: {
+      dispatch: () => {},
+    },
   };
   public container: any = jest.fn();
   public _context: any = jest.fn();
