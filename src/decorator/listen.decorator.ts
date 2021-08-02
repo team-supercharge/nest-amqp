@@ -27,6 +27,7 @@ export const Listen = <T>(source: string, options?: ListenOptions<T>) => {
     metadata.options = options;
 
     metadata.targetName = target.constructor.name;
+    metadata.target = target.constructor;
 
     metadata.callback = descriptor.value;
     metadata.callbackName = propertyKey;

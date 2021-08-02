@@ -22,7 +22,7 @@ describe('@Listen', () => {
   it('should set correctly the queue name and target data', () => {
     const metadata = Reflect.getMetadata(QUEUE_LISTEN_METADATA_KEY, instance.method1);
 
-    expect(metadata).toEqual(expect.objectContaining({ source: queueName, targetName: Test.name, callbackName: 'method1' }));
+    expect(metadata).toEqual(expect.objectContaining({ source: queueName, targetName: Test.name, target: Test, callbackName: 'method1' }));
   });
 
   it('should set the queue options', () => {
