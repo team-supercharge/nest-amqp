@@ -1,5 +1,7 @@
 import { ListenOptions } from '../interface';
 
+/* eslint-disable @typescript-eslint/ban-types */
+
 /**
  * Metadata added by the `@Listener` decorator
  */
@@ -25,7 +27,12 @@ export class ListenerMetadata<T> {
   public options: ListenOptions<T>;
 
   /**
-   * The Class the method belongs to
+   * The name of Class the method belongs to
    */
   public targetName: string;
+
+  /**
+   * The Class the method belongs to
+   */
+  public target: object;
 }

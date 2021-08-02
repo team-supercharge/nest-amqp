@@ -1,6 +1,7 @@
 import { DynamicModule, Inject, Module, OnModuleDestroy, OnModuleInit, Provider, Type } from '@nestjs/common';
 import { Connection } from 'rhea-promise';
 import { MetadataScanner, ModuleRef } from '@nestjs/core';
+import { UnknownElementException } from '@nestjs/core/errors/exceptions/unknown-element.exception';
 
 import { QueueModuleOptions, QueueModuleAsyncOptions, QueueModuleOptionsFactory } from './interface';
 import { AMQPService, ObjectValidatorService, QueueService } from './service';
@@ -145,7 +146,16 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
       logger.debug(`attaching listener for @Listen: ${JSON.stringify(listener)}`);
 
       // fetch instance from DI framework
-      const target = this.moduleRef.get(listener.targetName, { strict: false });
+      let target: any;
+      try {
+        target = this.moduleRef.get(listener.target as any, { strict: false });
+      } catch (err) {
+        if (err instanceof UnknownElementException) {
+          target = this.moduleRef.get(listener.targetName, { strict: false });
+        } else {
+          throw err;
+        }
+      }
 
       await this.queueService.listen(listener.source, listener.callback.bind(target), listener.options);
     }
