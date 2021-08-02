@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### 2.2.1 (2021-08-02)
+
+
+### Bug Fixes
+
+* try service resolution with class reference (fixes [#35](https://github.com/team-supercharge/nest-amqp/issues/35)) ([0cc7d34](https://github.com/team-supercharge/nest-amqp/commit/0cc7d344734c72b54ac6fb0886f9300f71fea0db))
+
 ## 2.2.0 (2021-08-01)
 
 
