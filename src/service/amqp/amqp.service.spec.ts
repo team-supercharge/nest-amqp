@@ -49,6 +49,9 @@ describe('AMQPService', () => {
         },
         linkOptions: options,
       })),
+      _connection: {
+        dispatch: () => {},
+      },
     }));
   });
 
@@ -162,7 +165,16 @@ describe('AMQPService', () => {
 
     await AMQPService.createConnection({ connectionUri: connectionSecureUri });
 
-    connectionEvents.forEach(event => event.callback({ error: new Error('test') }));
+    connectionEvents.forEach(event =>
+      event.callback(
+        new EventContextMock({
+          error: new Error('test'),
+          connection: {
+            open: () => Promise.resolve({}),
+          },
+        }),
+      ),
+    );
 
     expect(connectionEvents.length).toBeGreaterThan(0);
   });
