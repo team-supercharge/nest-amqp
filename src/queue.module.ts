@@ -76,8 +76,11 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    // `as Type<QueueOptionsFactory>` is a workaround for microsoft/TypeScript#31603
-    const inject = [(options.useClass || options.useExisting) as Type<QueueModuleOptionsFactory>];
+    if (!options.useClass && !options.useExisting) {
+      throw new Error('Must provide factory, class or existing provider');
+    }
+
+    const inject = [options.useClass ?? options.useExisting];
 
     return {
       provide: QUEUE_MODULE_OPTIONS,
