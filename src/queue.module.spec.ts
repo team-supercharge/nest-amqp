@@ -168,6 +168,17 @@ describe('QueueModule', () => {
 
       expect(amqpService.getModuleOptions()).toEqual({ connectionUri });
     });
+
+    it('should throw error when no provider is added', async () => {
+      try {
+        Test.createTestingModule({
+          imports: [QueueModule.forRootAsync({ imports: [TestQueueConfigModule] })],
+        });
+        expect.assertions(1);
+      } catch (e) {
+        expect(e.message).toBe('Must provide factory, class or existing provider');
+      }
+    });
   });
 
   describe('make to global module', () => {
