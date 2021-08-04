@@ -6,10 +6,10 @@ jest.mock('rhea-promise');
 import { Connection, ConnectionEvents, ReceiverEvents, SenderEvents } from 'rhea-promise';
 
 import { EventContextMock } from '../../test/event-context.mock';
-import { AMQP_CLIENT_TOKEN, QUEUE_MODULE_OPTIONS } from '../../constant';
+import { AMQP_CLIENT_TOKEN, AMQP_DEFAULT_CONNECTION_TOKEN } from '../../constant';
 import { QueueModuleOptions } from '../../interface';
 import { NestAmqpInvalidConnectionProtocolException } from '../../exception';
-import { Logger } from '../../util';
+import { AMQConnectionStorage, getAMQConnectionToken, getAMQConnectionOptionsToken, Logger, AMQConnectionOptionsStorage } from '../../util';
 import { LoggerMock } from '../../test/logger.mock';
 
 import { AMQPService } from './amqp.service';
@@ -21,16 +21,19 @@ describe('AMQPService', () => {
   const connectionSecureUri = 'amqps://localhost:5672';
   let module: TestingModule;
   let service: AMQPService;
-  let moduleOptions: QueueModuleOptions = {};
+  let moduleOptions: QueueModuleOptions = { connectionUri };
   let connection: Connection;
   let connectionEvents: Array<{ event: ConnectionEvents; callback: (context: any) => any }> = [];
   let senderEvents: Array<{ event: SenderEvents; callback: (context: any) => any }> = [];
+  let receiverEvents: Array<{ event: ReceiverEvents; callback: (context: any) => any }> = [];
   let connectionOpenMock: jest.Mock = jest.fn().mockResolvedValue(null);
-  const receiverEvents: Array<{ event: ReceiverEvents; callback: (context: any) => any }> = [];
   const getLastMockCall = (obj: MockInstance<any, any>) => {
     const mockCalls = obj.mock.calls;
     return mockCalls[mockCalls.length - 1];
   };
+
+  const spyStorageSet = jest.spyOn((AMQConnectionStorage as any).storage, 'set');
+  const spyStorageGet = jest.spyOn((AMQConnectionStorage as any).storage, 'get');
 
   beforeAll(() => {
     // mock the Connection constructor
@@ -59,11 +62,18 @@ describe('AMQPService', () => {
     (Connection as any).mockClear();
     connectionEvents = [];
     senderEvents = [];
+    receiverEvents = [];
     moduleOptions = { connectionUri };
+
+    ((AMQConnectionStorage as any).storage as Map<string, any>).clear();
+    ((AMQConnectionOptionsStorage as any).storage as Map<string, any>).clear();
+    spyStorageSet.mockClear();
+    spyStorageGet.mockClear();
+
     module = await Test.createTestingModule({
       providers: [
         {
-          provide: QUEUE_MODULE_OPTIONS,
+          provide: getAMQConnectionOptionsToken(),
           useValue: moduleOptions,
         },
         {
@@ -73,7 +83,7 @@ describe('AMQPService', () => {
 
             return connection;
           },
-          inject: [QUEUE_MODULE_OPTIONS],
+          inject: [getAMQConnectionOptionsToken()],
         },
         AMQPService,
       ],
@@ -90,7 +100,8 @@ describe('AMQPService', () => {
   });
 
   it('should return with module options', async () => {
-    expect(service.getModuleOptions()).toEqual(moduleOptions);
+    AMQConnectionOptionsStorage.add('test', moduleOptions);
+    expect(service.getConnectionOptions('test')).toEqual(moduleOptions);
   });
 
   it('should create connection', async () => {
@@ -263,7 +274,7 @@ describe('AMQPService', () => {
   });
 
   it('should successfully disconnect', async () => {
-    const connection = module.get<Connection>(AMQP_CLIENT_TOKEN);
+    const connection = module.get<Connection>(getAMQConnectionToken());
 
     await service.disconnect();
 
@@ -332,5 +343,88 @@ describe('AMQPService', () => {
     expect(() => {
       (receiver.linkOptions as any).onError(context);
     }).not.toThrow();
+  });
+
+  describe('multiple connections', () => {
+    const connectionName = 'testConnection';
+
+    beforeEach(() => {
+      ((AMQConnectionStorage as any).storage as Map<string, any>).clear();
+      spyStorageSet.mockClear();
+      spyStorageGet.mockClear();
+
+      senderEvents = [];
+      receiverEvents = [];
+
+      service = module.get<AMQPService>(AMQPService);
+    });
+
+    it('should create connection with the default name', async () => {
+      const createdConnection = await AMQPService.createConnection({ connectionUri: connectionSecureUri });
+
+      const storedConnection = AMQConnectionStorage.get(AMQP_DEFAULT_CONNECTION_TOKEN);
+
+      expect(spyStorageSet.mock.calls.length).toEqual(1);
+      expect(spyStorageSet.mock.calls[0][0]).toEqual(AMQP_DEFAULT_CONNECTION_TOKEN);
+
+      expect(storedConnection).toEqual(createdConnection);
+    });
+
+    it('should create connection with not the default name', async () => {
+      const createdConnection = await AMQPService.createConnection({ connectionUri: connectionSecureUri }, connectionName);
+
+      const storedConnection = AMQConnectionStorage.get(connectionName);
+
+      expect(spyStorageSet.mock.calls.length).toEqual(1);
+      expect(spyStorageSet.mock.calls[0][0]).toEqual(connectionName);
+
+      expect(storedConnection).toEqual(createdConnection);
+    });
+
+    it('should create sender on connection', async () => {
+      await AMQPService.createConnection({ connectionUri: connectionSecureUri }, connectionName);
+
+      await service.createSender('testQueue', connectionName);
+
+      expect(senderEvents.length).toBeGreaterThan(0);
+    });
+
+    it('should throw error while trying to create sender on nonexistant connection', async () => {
+      await AMQPService.createConnection({ connectionUri: connectionSecureUri }, connectionName);
+
+      try {
+        await service.createSender('testQueue', 'nonExisting');
+        expect.assertions(1);
+      } catch (e) {
+        expect(e.message).toBe('No connection found for name nonExisting');
+      }
+
+      expect(spyStorageGet.mock.calls.length).toEqual(1);
+      expect(spyStorageGet.mock.calls[0][0]).toEqual('nonExisting');
+      expect(senderEvents.length).toEqual(0);
+    });
+
+    it('should create receiver on connection', async () => {
+      await AMQPService.createConnection({ connectionUri: connectionSecureUri }, connectionName);
+
+      await service.createReceiver('testQueue', 1, async () => {}, connectionName);
+
+      expect(receiverEvents.length).toBeGreaterThan(0);
+    });
+
+    it('should throw error while trying to create receiver on nonexistant connection', async () => {
+      await AMQPService.createConnection({ connectionUri: connectionSecureUri }, connectionName);
+
+      try {
+        await service.createReceiver('testQueue', 1, async () => {}, 'nonExisting');
+        expect.assertions(1);
+      } catch (e) {
+        expect(e.message).toBe('No connection found for name nonExisting');
+      }
+
+      expect(spyStorageGet.mock.calls.length).toEqual(1);
+      expect(spyStorageGet.mock.calls[0][0]).toEqual('nonExisting');
+      expect(receiverEvents.length).toEqual(0);
+    });
   });
 });

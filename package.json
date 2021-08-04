@@ -1,6 +1,6 @@
 {
   "name": "@team-supercharge/nest-amqp",
-  "version": "2.3.0",
+  "version": "3.0.0",
   "description": "AMQP 1.0 module for Nest framework",
   "author": "Supercharge",
   "license": "MIT",
@@ -16,6 +16,7 @@
   "publishConfig": {
     "access": "public"
   },
+  "main": "dist/index.js",
   "scripts": {
     "prebuild": "rimraf dist",
     "prebuild:prod": "rimraf dist",

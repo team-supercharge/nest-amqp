@@ -1,0 +1,28 @@
+version: "3.7"
+
+services:
+  activemq-artemis-1:
+    image: vromero/activemq-artemis:2.15.0
+    container_name: activemq-artemis-1
+    hostname: activemq-artemis-1
+    restart: "no"
+    environment:
+      ARTEMIS_USERNAME: artemis1
+      ARTEMIS_PASSWORD: secret
+    ports:
+      - "18161:8161"
+      - "61616:61616"
+      - "15672:5672"
+
+  activemq-artemis-2:
+    image: vromero/activemq-artemis:2.15.0
+    container_name: activemq-artemis-2
+    hostname: activemq-artemis-2
+    restart: "no"
+    environment:
+      ARTEMIS_USERNAME: artemis2
+      ARTEMIS_PASSWORD: secret
+    ports:
+      - "28161:8161"
+      - "62626:61616"
+      - "25672:5672"

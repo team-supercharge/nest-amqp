@@ -1,0 +1,19 @@
+// add user through connection A
+POST http://{{host}}/user/connection-a
+Content-Type: application/json
+
+{
+  "name": "Peter",
+  "age": 23
+}
+
+###
+
+// add user through connection B
+POST http://{{host}}/user/connection-b
+Content-Type: application/json
+
+{
+  "name": "Eva",
+  "age": 20
+}

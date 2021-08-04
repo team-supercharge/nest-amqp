@@ -11,5 +11,5 @@ services:
       ARTEMIS_PASSWORD: secret
     ports:
       - "8161:8161"
-      - "61616:61616"
+      - "6161:61616"
       - "5672:5672"
