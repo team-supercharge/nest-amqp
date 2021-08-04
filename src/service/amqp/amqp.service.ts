@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { EventEmitter } from 'events';
 import {
   AwaitableSender,
@@ -12,9 +12,9 @@ import {
 } from 'rhea-promise';
 import { URL } from 'url';
 
-import { getLoggerContext, Logger } from '../../util';
-import { QueueModuleOptions } from '../../interface';
-import { AMQP_CLIENT_TOKEN, AMQP_CONNECTION_RECONNECT, QUEUE_MODULE_OPTIONS } from '../../constant';
+import { getLoggerContext, Logger, AMQConnectionStorage, AMQConnectionOptionsStorage } from '../../util';
+import { AMQPConnectionOptions } from '../../interface';
+import { AMQP_CONNECTION_RECONNECT, AMQP_DEFAULT_CONNECTION_TOKEN } from '../../constant';
 import { NestAmqpInvalidConnectionProtocolException } from '../../exception';
 
 /**
@@ -40,18 +40,24 @@ export class AMQPService {
    * const connection = await AMQPService.createConnection({ connectionUri: 'amqp://user:password@localhost:5672' });
    * ```
    *
-   * @param {QueueModuleOptions} [options] Options for the module.
+   * @param {QueueModuleOptions} options Options for the module.
+   * @param {string} [connectionName] Name of the connection that is created
+   *
    * @return {Connection} The created `rhea-promise` Connection.
    * @static
    */
-  public static async createConnection(options: QueueModuleOptions): Promise<Connection> {
+  public static async createConnection(
+    options: AMQPConnectionOptions,
+    connectionName: string = AMQP_DEFAULT_CONNECTION_TOKEN,
+  ): Promise<Connection> {
     if (Object.prototype.toString.call(options) !== '[object Object]') {
       throw new Error('AMQPModule connection options must an object');
     }
 
     logger.log('creating AMQP client');
+    logger.log(`connection options: ${JSON.stringify(options)}, connection name: ${connectionName}`);
 
-    const { throwExceptionOnConnectionError, connectionUri, ...rheaConnectionOptions } = options;
+    const { throwExceptionOnConnectionError, connectionUri, connectionOptions: rheaConnectionOptions } = options;
     const parsedConnectionUri = new URL(connectionUri);
     const { protocol, hostname, port } = parsedConnectionUri;
     const username = decodeURIComponent(parsedConnectionUri.username);
@@ -132,43 +138,53 @@ export class AMQPService {
     }
     logger.log('created AMQP connection');
 
+    AMQConnectionStorage.add(connectionName, connection);
+
     return connection;
   }
 
-  constructor(
-    @Inject(QUEUE_MODULE_OPTIONS) private readonly moduleOptions: QueueModuleOptions,
-    @Inject(AMQP_CLIENT_TOKEN) private readonly connection: Connection,
-  ) {}
-
-  /**
-   * Closes the created connection.
-   */
-  public async disconnect(): Promise<void> {
-    logger.log('disconnecting from queue');
-
-    // disconnect queue
-    await this.connection.close();
-
-    logger.log('queue disconnected');
-  }
+  constructor() {}
 
   /**
    * Returns the connection object with which the AMQP connection was created.
    *
-   * @return {QueueModuleOptions} Connection options.
+   * @return {AMQPConnectionOptions} Connection options.
    */
-  public getModuleOptions(): QueueModuleOptions {
-    return { ...this.moduleOptions };
+  public getConnectionOptions(connection: string = AMQP_DEFAULT_CONNECTION_TOKEN): AMQPConnectionOptions {
+    return { ...AMQConnectionOptionsStorage.get(connection) };
+  }
+
+  /**
+   * Closes all the created connections.
+   */
+  public async disconnect(): Promise<void> {
+    const connections = AMQConnectionStorage.getConnectionNames();
+
+    for (const connectionName of connections) {
+      // disconnect queue
+      const connection = AMQConnectionStorage.get(connectionName);
+
+      await connection.close();
+    }
+    logger.log('queue disconnected');
   }
 
   /**
    * Creates a sender object which will send the message to the given queue.
    *
    * @param {string} queue Name of the queue.
+   * @param {string} [connectionName] Name of the connection the sender will use
+   *
    * @return {AwaitableSender} Sender.
    */
-  public async createSender(queue: string): Promise<AwaitableSender> {
-    const sender = await this.connection.createAwaitableSender({ target: queue });
+  public async createSender(queue: string, connectionName: string = AMQP_DEFAULT_CONNECTION_TOKEN): Promise<AwaitableSender> {
+    const connection = AMQConnectionStorage.get(connectionName);
+
+    if (!connection) {
+      throw new Error(`No connection found for name ${connectionName}`);
+    }
+
+    const sender = await connection.createAwaitableSender({ target: queue });
 
     sender.on(SenderEvents.senderOpen, (context: EventContext) => {
       logger.log(`sender for ${context.sender.address} opened`);
@@ -200,9 +216,16 @@ export class AMQPService {
    * @param {string} queueName Name of the queue.
    * @param {number} credits How many message can be processed parallel.
    * @param {function(context: EventContext): Promise<void>} onMessage Function what will be invoked when a message arrives.
+   * @param {string} [connectionName] Name of the connection the receiver is on
+   *
    * @return {Receiver} Receiver.
    */
-  public async createReceiver(queueName: string, credits: number, onMessage: (context: EventContext) => Promise<void>): Promise<Receiver> {
+  public async createReceiver(
+    queueName: string,
+    credits: number,
+    onMessage: (context: EventContext) => Promise<void>,
+    connectionName: string = AMQP_DEFAULT_CONNECTION_TOKEN,
+  ): Promise<Receiver> {
     const onError = (context: EventContext) => {
       logger.error(
         `receiver for ${context.receiver.address} errored: ${JSON.stringify({
@@ -211,7 +234,13 @@ export class AMQPService {
       );
     };
 
-    const receiver: Receiver = await this.connection.createReceiver({
+    const connection = AMQConnectionStorage.get(connectionName);
+
+    if (!connection) {
+      throw new Error(`No connection found for name ${connectionName}`);
+    }
+
+    const receiver: Receiver = await connection.createReceiver({
       onError,
       onMessage,
       source: queueName,
@@ -265,16 +294,12 @@ export class AMQPService {
     switch (protocol) {
       case 'amqp:':
         return 'tcp';
-        break;
       case 'amqps:':
         return 'ssl';
-        break;
       case 'amqp+ssl:':
         return 'ssl';
-        break;
       case 'amqp+tls:':
         return 'tls';
-        break;
       default:
         throw new NestAmqpInvalidConnectionProtocolException(`Not supported connection protocol: ${protocol}`);
     }

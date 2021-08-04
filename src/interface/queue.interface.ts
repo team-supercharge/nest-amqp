@@ -15,17 +15,34 @@ export interface ListenOptions<T> extends ObjectValidationOptions {
   type?: new (...params: any[]) => T;
 
   /**
-   * If it is true then the message body will not be validated.
+   * @deprecated Will be removed in the next major release, use `skipValidation` instead
    *
+   * If it is true then the message body will not be validated.
    * @default false
    */
   noValidate?: boolean;
+
+  /**
+   *
+   * If it is true then the message body will not be validated.
+   * @default false
+   */
+  skipValidation?: boolean;
 
   /**
    * How many messages can should the listener method process in the same time. A way to control performace
    * @default 1.
    */
   parallelMessageProcessing?: number;
+
+  /**
+   * Should mark the message as accepted if the validation fails with Null Exception.
+   *
+   * Allows for removing message from ActiveMQ specifically since it currently does not handle the difference between reject and release
+   *
+   * @default false
+   */
+  acceptValidationNullObjectException?: boolean;
 }
 
 /**
