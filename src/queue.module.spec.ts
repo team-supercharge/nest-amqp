@@ -1,11 +1,13 @@
 import { Injectable, Module } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { AMQP_DEFAULT_CONNECTION_TOKEN, QUEUE_MODULE_OPTIONS } from './constant';
 
 jest.mock('rhea-promise');
 
-import { QueueModuleOptions, QueueModuleOptionsFactory } from './interface';
+import { QueueModuleAsyncOptions, QueueModuleOptions, QueueModuleOptionsFactory } from './interface';
 import { QueueModule } from './queue.module';
 import { AMQPService, QueueService } from './service';
+import { AMQConnectionOptionsStorage, AMQConnectionStorage, getAMQConnectionOptionsToken } from './util';
 
 describe('QueueModule', () => {
   const connectionUri = 'amqp://localhost:5672';
@@ -65,7 +67,11 @@ describe('QueueModule', () => {
   class TestGlobalFeatureModule {}
 
   afterEach(async () => {
-    await module.close();
+    ((AMQConnectionOptionsStorage as any).storage as Map<string, any>).clear();
+    ((AMQConnectionStorage as any).storage as Map<string, any>).clear();
+
+    await module?.close();
+
     (QueueModule as any).moduleDefinition.imports = [];
     (QueueModule as any).moduleDefinition.providers = originalModuleProviders;
   });
@@ -75,106 +81,205 @@ describe('QueueModule', () => {
       module = await Test.createTestingModule({
         imports: [QueueModule.forRoot(connectionUri)],
       }).compile();
-      const amqpService = module.get<AMQPService>(AMQPService);
 
-      expect(amqpService.getModuleOptions()).toEqual(moduleOptions);
+      const connectionOptions = module.get(getAMQConnectionOptionsToken(AMQP_DEFAULT_CONNECTION_TOKEN));
+
+      expect(connectionOptions).toEqual(moduleOptions);
     });
 
     it('should work with connection URI and module options arguments', async () => {
       module = await Test.createTestingModule({
         imports: [QueueModule.forRoot(connectionUri, { throwExceptionOnConnectionError: true })],
       }).compile();
+
       const amqpService = module.get<AMQPService>(AMQPService);
 
-      expect(amqpService.getModuleOptions()).toEqual({ throwExceptionOnConnectionError: true, connectionUri });
+      expect(amqpService.getConnectionOptions()).toEqual({ throwExceptionOnConnectionError: true, connectionUri });
     });
 
     it('should work only with module options', async () => {
       module = await Test.createTestingModule({
         imports: [QueueModule.forRoot({ connectionUri, throwExceptionOnConnectionError: true })],
       }).compile();
+
       const amqpService = module.get<AMQPService>(AMQPService);
 
-      expect(amqpService.getModuleOptions()).toEqual({ throwExceptionOnConnectionError: true, connectionUri });
+      expect(amqpService.getConnectionOptions()).toEqual({ throwExceptionOnConnectionError: true, connectionUri });
+    });
+
+    it('should work with connection URI and connection name', async () => {
+      const connection = 'test-connection';
+
+      module = await Test.createTestingModule({
+        imports: [QueueModule.forRoot([{ connectionUri, name: connection }], {})],
+      }).compile();
+
+      const amqpService = module.get<AMQPService>(AMQPService);
+      expect(amqpService.getConnectionOptions(connection)).toEqual({ connectionUri });
+    });
+
+    it('should work with multiple connection options supplied', async () => {
+      const connection1 = 'connection1';
+      const connection2 = 'connection2';
+
+      const connectionUri1 = 'amqp://localhost:5672';
+      const connectionUri2 = 'amqp://localhost:5671';
+
+      module = await Test.createTestingModule({
+        imports: [
+          QueueModule.forRoot(
+            [
+              { connectionUri: connectionUri1, name: connection1, connectionOptions: {} },
+              { connectionUri: connectionUri2, name: connection2, connectionOptions: {} },
+            ],
+            {},
+          ),
+        ],
+      }).compile();
+
+      const amqpService = module.get<AMQPService>(AMQPService);
+      expect(amqpService.getConnectionOptions(connection1)).toEqual({ connectionUri: connectionUri1, connectionOptions: {} });
+      expect(amqpService.getConnectionOptions(connection2)).toEqual({ connectionUri: connectionUri2, connectionOptions: {} });
+    });
+
+    it('should work with multiple connection options supplied, one named default', async () => {
+      const connection2 = 'connection2';
+
+      const connectionUri1 = 'amqp://localhost:5672';
+      const connectionUri2 = 'amqp://localhost:5671';
+
+      module = await Test.createTestingModule({
+        imports: [
+          QueueModule.forRoot(
+            [
+              { connectionUri: connectionUri1, connectionOptions: {} },
+              { connectionUri: connectionUri2, name: connection2, connectionOptions: {} },
+            ],
+            {},
+          ),
+        ],
+      }).compile();
+
+      const amqpService = module.get<AMQPService>(AMQPService);
+      expect(amqpService.getConnectionOptions()).toEqual({ connectionUri: connectionUri1, connectionOptions: {} });
+      expect(amqpService.getConnectionOptions(AMQP_DEFAULT_CONNECTION_TOKEN)).toEqual({
+        connectionUri: connectionUri1,
+        connectionOptions: {},
+      });
+      expect(amqpService.getConnectionOptions(connection2)).toEqual({ connectionUri: connectionUri2, connectionOptions: {} });
     });
   });
 
   describe('forFeature()', () => {
-    it('should import as feature module', async () => {
+    it('should import as feature module, with default module options', async () => {
       module = await Test.createTestingModule({
         imports: [QueueModule.forRoot(connectionUri), TestForFeatureModule],
       }).compile();
+
       const forFeatureTestService = module.get<TestForFeatureService>(TestForFeatureService);
 
-      expect((forFeatureTestService.queueService as any).amqpService.getModuleOptions()).toEqual(moduleOptions);
+      expect((forFeatureTestService.queueService as any).amqpService.getConnectionOptions()).toEqual(moduleOptions);
+    });
+
+    it('should import as feature module, with module options for connection', async () => {
+      module = await Test.createTestingModule({
+        imports: [
+          QueueModule.forRoot(connectionUri),
+          {
+            imports: [QueueModule.forFeature()],
+            providers: [TestForFeatureService],
+            exports: [TestForFeatureService],
+            module: TestForFeatureModule,
+          },
+        ],
+      }).compile();
+
+      const forFeatureTestService = module.get<TestForFeatureService>(TestForFeatureService);
+
+      expect((forFeatureTestService.queueService as any).amqpService.getConnectionOptions()).toEqual(moduleOptions);
     });
   });
 
   describe('forRootAsync()', () => {
     it(`should import as sync module with 'useFactory'`, async () => {
+      const asyncOptions = { useFactory: () => ({ connectionUri }) };
       module = await Test.createTestingModule({
-        imports: [
-          QueueModule.forRootAsync({
-            useFactory: () => ({ connectionUri }),
-          }),
-        ],
+        imports: [QueueModule.forRootAsync(asyncOptions)],
       }).compile();
-      const amqpService = module.get<AMQPService>(AMQPService);
 
-      expect(amqpService.getModuleOptions()).toEqual({ connectionUri });
+      const connectionOptions = module.get(getAMQConnectionOptionsToken(AMQP_DEFAULT_CONNECTION_TOKEN));
+
+      expect(connectionOptions).toEqual({ connectionUri });
     });
 
     it(`should import as async module with 'useFactory'`, async () => {
-      module = await Test.createTestingModule({
-        imports: [
-          QueueModule.forRootAsync({
-            imports: [TestConfigModule],
-            inject: [TestConfigService],
-            useFactory: (testConfigService: TestConfigService) => ({
-              connectionUri: testConfigService.getAmqpUrl(),
-            }),
-          }),
-        ],
-      }).compile();
-      const amqpService = module.get<AMQPService>(AMQPService);
+      const asyncOptions = {
+        imports: [TestConfigModule],
+        inject: [TestConfigService],
+        useFactory: (testConfigService: TestConfigService) => ({
+          connectionUri: testConfigService.getAmqpUrl(),
+        }),
+      };
 
-      expect(amqpService.getModuleOptions()).toEqual({ connectionUri });
+      module = await Test.createTestingModule({
+        imports: [QueueModule.forRootAsync(asyncOptions)],
+      }).compile();
+
+      const connectionOptions = module.get(getAMQConnectionOptionsToken(AMQP_DEFAULT_CONNECTION_TOKEN));
+
+      expect(connectionOptions).toEqual({ connectionUri });
     });
 
     it(`should import as async module with 'useClass'`, async () => {
-      module = await Test.createTestingModule({
-        imports: [
-          QueueModule.forRootAsync({
-            imports: [TestQueueConfigModule],
-            useClass: TestQueueConfigService,
-          }),
-        ],
-      }).compile();
-      const amqpService = module.get<AMQPService>(AMQPService);
+      const asyncOptions = {
+        imports: [TestQueueConfigModule],
+        useClass: TestQueueConfigService,
+      };
 
-      expect(amqpService.getModuleOptions()).toEqual({ connectionUri });
+      module = await Test.createTestingModule({
+        imports: [QueueModule.forRootAsync(asyncOptions)],
+      }).compile();
+
+      const connectionOptions = module.get(getAMQConnectionOptionsToken(AMQP_DEFAULT_CONNECTION_TOKEN));
+
+      expect(connectionOptions).toEqual({ connectionUri });
     });
 
     it(`should import as async module with 'useExisting'`, async () => {
-      module = await Test.createTestingModule({
-        imports: [
-          QueueModule.forRootAsync({
-            imports: [TestQueueConfigModule],
-            useExisting: TestQueueConfigService,
-          }),
-        ],
-      }).compile();
-      const amqpService = module.get<AMQPService>(AMQPService);
+      const asyncOptions = {
+        imports: [TestQueueConfigModule],
+        useExisting: TestQueueConfigService,
+      };
 
-      expect(amqpService.getModuleOptions()).toEqual({ connectionUri });
+      module = await Test.createTestingModule({
+        imports: [QueueModule.forRootAsync(asyncOptions)],
+      }).compile();
+
+      const connectionOptions = module.get(getAMQConnectionOptionsToken(AMQP_DEFAULT_CONNECTION_TOKEN));
+
+      expect(connectionOptions).toEqual({ connectionUri });
+    });
+
+    it(`should import as async module with 'useExisting' adding Queue Module Options`, async () => {
+      const asyncOptions: QueueModuleAsyncOptions = {
+        imports: [TestQueueConfigModule],
+        useExisting: TestQueueConfigService,
+      };
+
+      module = await Test.createTestingModule({
+        imports: [QueueModule.forRootAsync(asyncOptions)],
+      }).compile();
+
+      const moduleOptions = module.get(QUEUE_MODULE_OPTIONS);
+
+      expect(moduleOptions).toEqual({ connectionUri });
     });
 
     it('should throw error when no provider is added', async () => {
       try {
         Test.createTestingModule({
-          imports: [QueueModule.forRootAsync({ imports: [TestQueueConfigModule] })],
+          imports: [QueueModule.forRootAsync({})],
         });
-        expect.assertions(1);
       } catch (e) {
         expect(e.message).toBe('Must provide factory, class or existing provider');
       }
@@ -186,8 +291,11 @@ describe('QueueModule', () => {
       module = await Test.createTestingModule({
         imports: [QueueModule.forRoot(connectionUri, { isGlobal: true }), TestGlobalFeatureModule],
       }).compile();
-      const testGlobalFeatureService = module.get<TestGlobalFeatureService>(TestGlobalFeatureService);
 
+      const testGlobalFeatureService = module.get<TestGlobalFeatureService>(TestGlobalFeatureService);
+      const connectionOptions = module.get(getAMQConnectionOptionsToken(AMQP_DEFAULT_CONNECTION_TOKEN));
+
+      expect(connectionOptions).toEqual({ connectionUri });
       expect(testGlobalFeatureService.queueService).toBeDefined();
     });
 
@@ -202,7 +310,9 @@ describe('QueueModule', () => {
         ],
       }).compile();
       const testGlobalFeatureService = module.get<TestGlobalFeatureService>(TestGlobalFeatureService);
+      const connectionOptions = module.get(getAMQConnectionOptionsToken(AMQP_DEFAULT_CONNECTION_TOKEN));
 
+      expect(connectionOptions).toEqual({ connectionUri });
       expect(testGlobalFeatureService.queueService).toBeDefined();
     });
 

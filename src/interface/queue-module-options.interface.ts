@@ -1,13 +1,11 @@
 import { ConnectionOptions } from 'rhea-promise';
 import { LoggerService } from '@nestjs/common';
 
-/** Interface defining options for importing QueueModule
- *
- * @extends QueueServiceMessageHandlingOptions
+/** Interface defining options for importing QueueModule for multiple connections
  *
  * @public
  */
-export interface QueueModuleOptions extends QueueServiceMessageHandlingOptions {
+export interface MultiConnectionQueueModuleOptions {
   /**
    * Marks Module as Global module in NestJS
    */
@@ -19,22 +17,37 @@ export interface QueueModuleOptions extends QueueServiceMessageHandlingOptions {
   logger?: LoggerService;
 }
 
-/**
- * Interface defining options how the QueueService should handle Messages or errors with messages
+/** Interface defining options for importing QueueModule
  *
  * @extends AMQPConnectionOptions
  *
  * @public
  */
-export interface QueueServiceMessageHandlingOptions extends AMQPConnectionOptions {
+export interface QueueModuleOptions extends AMQPConnectionOptions {
   /**
-   * Queue Module should mark the message as accepted if the validation fails with Null Exception.
-   *
-   * Allows for removing message from ActiveMQ specifically since it currently does not handle the difference between reject and release
-   *
-   * @default false
+   * Marks Module as Global module in NestJS
    */
-  acceptValidationNullObjectException?: boolean;
+  isGlobal?: boolean;
+
+  /**
+   * Custom Logger to be used if needed
+   */
+  logger?: LoggerService;
+}
+
+/** Interface defining options for importing QueueModule with multiple connections
+ *
+ * @extends AMQPConnectionOptions
+ *
+ * @public
+ */
+export interface NamedAMQPConnectionOptions extends AMQPConnectionOptions {
+  /**
+   * Name of the connection, must be unique
+   *
+   * It will be a default value if not given
+   */
+  readonly name?: string;
 }
 
 /**
@@ -44,10 +57,18 @@ export interface QueueServiceMessageHandlingOptions extends AMQPConnectionOption
  */
 export interface AMQPConnectionOptions {
   /**
+   * AMQ Broker uri
+   */
+  connectionUri: string;
+
+  /**
    * Queue Module should throw exception when error occures in the connections
    * @default false
    */
   throwExceptionOnConnectionError?: boolean;
-  connectionUri?: string;
+
+  /**
+   * Connection options directly used by `rhea`
+   */
   connectionOptions?: ConnectionOptions;
 }

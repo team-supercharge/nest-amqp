@@ -35,4 +35,9 @@ export class ListenerMetadata<T> {
    * The Class the method belongs to
    */
   public target: object;
+
+  /**
+   * Connection the listener should be using
+   */
+  public connection: string;
 }

@@ -14,6 +14,7 @@ import { MessageControl } from '../../domain';
 import { SendState } from '../../enum';
 import { AMQPService, ObjectValidatorService } from '..';
 import { ListenOptions, SendOptions } from '../../interface';
+import { AMQP_DEFAULT_CONNECTION_TOKEN } from '../../constant';
 
 const PARALLEL_MESSAGE_COUNT = 1;
 const toString = Object.prototype.toString;
@@ -40,7 +41,8 @@ export class QueueService {
    *
    * @param {string} queueName Name of the queue.
    * @param {function(object: T, control: MessageControl) => Promise<void>} callback Function what will invoked when message arrives.
-   * @param {ListenOptions<T>} [options] Options for message processing.
+   * @param {ListenOptions<T>} options Options for message processing.
+   * @param {string} [connection] Name of the connection
    *
    * @public
    */
@@ -48,6 +50,7 @@ export class QueueService {
     queueName: string,
     callback: (object: T, control: MessageControl) => Promise<void>,
     options: ListenOptions<T>,
+    connection: string = AMQP_DEFAULT_CONNECTION_TOKEN,
   ): Promise<void> {
     // get receiver
     const initialCredit = !!options && options.parallelMessageProcessing ? options.parallelMessageProcessing : PARALLEL_MESSAGE_COUNT;
@@ -90,14 +93,14 @@ export class QueueService {
           }
 
           object =
-            options && options.noValidate
+            options && (options.noValidate || options.skipValidation)
               ? parsed
               : await this.objectValidatorService.validate(options.type, parsed, { transformerOptions, validatorOptions });
         } catch (error) {
           if (error instanceof ValidationNullObjectException) {
             logger.error(`null received as body on ${context.receiver.address}`);
 
-            const { acceptValidationNullObjectException } = this.amqpService.getModuleOptions();
+            const acceptValidationNullObjectException = options.acceptValidationNullObjectException ?? false;
             if (acceptValidationNullObjectException === true) {
               control.accept();
             } else {
@@ -136,6 +139,7 @@ export class QueueService {
         logger.log(`handling '${queueName}' finished in ${durationInMs} (ms)`);
 
         // handle auto-accept when message is otherwise not handled
+        // istanbul ignore next
         if (!control.isHandled()) {
           control.accept();
         }
@@ -157,7 +161,7 @@ export class QueueService {
         control.reject(error.message);
       });
     };
-    await this.getReceiver(queueName, initialCredit, messageHandler);
+    await this.getReceiver(queueName, initialCredit, messageHandler, connection);
   }
 
   /**
@@ -166,16 +170,25 @@ export class QueueService {
    *
    * @param {string} target Name of the queue.
    * @param {T} message Message body.
-   * @param {SendOptions} [options] Options for message sending.
+   * @param {SendOptions} [sendOptions] Options for message sending.
+   * @param {string} [connectionName] Name of the connection the Sender should be attached to
    *
    * @return {Promise<SendState>} Result of sending the message.
    *
    * @public
    */
-  public async send<T = any>(target: string, message: T, options?: SendOptions): Promise<SendState> {
+  public async send<T>(target: string, message: T): Promise<SendState>;
+  public async send<T>(target: string, message: T, sendOptions: SendOptions): Promise<SendState>;
+  public async send<T>(target: string, message: T, connectionName: string): Promise<SendState>;
+  public async send<T>(target: string, message: T, sendOptions: SendOptions, connectionName: string): Promise<SendState>;
+  public async send<T>(target: string, message: T, sendOptions?: SendOptions | string, connectionName?: string): Promise<SendState> {
+    const connection =
+      connectionName ?? (typeof sendOptions === 'string' ? (sendOptions as string) : (AMQP_DEFAULT_CONNECTION_TOKEN as string));
+    const options = typeof sendOptions === 'object' ? sendOptions : {};
+
     // get sender
-    const sender: AwaitableSender = await this.getSender(target);
-    const { schedule, ...baseOptions } = options || {};
+    const sender: AwaitableSender = await this.getSender(target, connection);
+    const { schedule, ...baseOptions } = options;
 
     // TODO: refactor messageToSend creation using state object or state switch
     let messageToSend: Message;
@@ -242,6 +255,7 @@ export class QueueService {
     // send message
     const delivery: Delivery = await sender.send(messageToSend);
 
+    // istanbul ignore next: SendState is dependent on broker, very hard to mock out
     return delivery.sent ? SendState.Success : SendState.Failed;
   }
 
@@ -264,7 +278,8 @@ export class QueueService {
       }
     }
 
-    // disconnect queue connection
+    // disconnect queue connections
+
     await this.amqpService.disconnect();
 
     logger.log('queue processing stopped');
@@ -283,29 +298,34 @@ export class QueueService {
     queueName: string,
     credit: number,
     messageHandler: (context: EventContext) => Promise<void>,
+    connection: string,
   ): Promise<Receiver> {
     let receiver;
 
-    if (this.receivers.has(queueName)) {
-      receiver = this.receivers.get(queueName);
-    } else {
-      receiver = await this.amqpService.createReceiver(queueName, credit, messageHandler.bind(this));
+    const receiverToken = this.getLinkToken(queueName, connection);
 
-      this.receivers.set(queueName, receiver);
+    if (this.receivers.has(receiverToken)) {
+      receiver = this.receivers.get(receiverToken);
+    } else {
+      receiver = await this.amqpService.createReceiver(queueName, credit, messageHandler.bind(this), connection);
+
+      this.receivers.set(receiverToken, receiver);
     }
 
     return receiver;
   }
 
-  private async getSender(target: string): Promise<AwaitableSender> {
+  private async getSender(queueName: string, connection: string): Promise<AwaitableSender> {
     let sender;
 
-    if (this.senders.has(target)) {
-      sender = this.senders.get(target);
-    } else {
-      sender = await this.amqpService.createSender(target);
+    const senderToken = this.getLinkToken(queueName, connection);
 
-      this.senders.set(target, sender);
+    if (this.senders.has(senderToken)) {
+      sender = this.senders.get(senderToken);
+    } else {
+      sender = await this.amqpService.createSender(queueName, connection);
+
+      this.senders.set(senderToken, sender);
     }
 
     return sender;
@@ -324,6 +344,10 @@ export class QueueService {
     const object = JSON.parse(objectLike);
 
     return object;
+  }
+
+  private getLinkToken(queue: string, connection: string): string {
+    return `${connection}:${queue}`;
   }
 }
 
