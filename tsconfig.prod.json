@@ -3,5 +3,5 @@
   "compilerOptions": {
     "sourceMap": false
   },
-  "exclude": ["node_modules", "**/*spec.ts", "example", "src/test", "dist"]
+  "exclude": ["node_modules", "**/*spec.ts", "examples", "src/test", "dist"]
 }
