@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## 2.3.0 (2021-08-24)
+
+
+### Features
+
+* **queue-module:** throw error if no way to create provider is supplied ([d711d81](https://github.com/team-supercharge/nest-amqp/commit/d711d81344b641f43d8e85f8ae38e5eb74115209))
+
 ### 2.2.2 (2021-08-02)
 
 
