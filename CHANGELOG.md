@@ -2,7 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-### 3.0.1 (2021-08-24)
+## [3.0.1](https://github.com/team-supercharge/nest-amqp/compare/v2.3.0...v3.0.1) (2021-08-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* `acceptValidationNullObjectException` is moved to `ListenOptions` and
+  will not be available on `QueueModuleOptions`.
+### Features
+
+* add support to use multiple connections ([af4d5bb](https://github.com/team-supercharge/nest-amqp/commit/af4d5bb7c2861031dbb20284b87cba88b663bab7))
 
 ## 2.3.0 (2021-08-24)
 
@@ -54,7 +63,7 @@ All notable changes to this project will be documented in this file. See [standa
 ### ⚠ BREAKING CHANGES
 
 * `AMQPService.getConnectionOptions()` was renamed to `AMQPService.getModuleOptions()`.
-* `QueueModule.forRoot()` method argument interface was restructured and renamed to `QueueModuleOptions`. 
+* `QueueModule.forRoot()` method argument interface was restructured and renamed to `QueueModuleOptions`.
   The new structure (all properties are optional):
   ```javascript
   {
