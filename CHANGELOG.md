@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### 3.0.2 (2021-08-27)
+
+
+### Bug Fixes
+
+* export module constants ([235813a](https://github.com/team-supercharge/nest-amqp/commit/235813a471676da20493656b1f0c3de443a7d3b0))
+
 ## [3.0.1](https://github.com/team-supercharge/nest-amqp/compare/v2.3.0...v3.0.1) (2021-08-24)
 
 
