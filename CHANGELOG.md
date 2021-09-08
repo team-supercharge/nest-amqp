@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### 3.0.3 (2021-09-08)
+
+
+### Bug Fixes
+
+* **queue-service:** use toString to better check for object ([d825139](https://github.com/team-supercharge/nest-amqp/commit/d825139063a0dfbdfb95c06c1f00551044816962))
+
 ### 3.0.2 (2021-08-27)
 
 
