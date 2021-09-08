@@ -184,7 +184,7 @@ export class QueueService {
   public async send<T>(target: string, message: T, sendOptions?: SendOptions | string, connectionName?: string): Promise<SendState> {
     const connection =
       connectionName ?? (typeof sendOptions === 'string' ? (sendOptions as string) : (AMQP_DEFAULT_CONNECTION_TOKEN as string));
-    const options = typeof sendOptions === 'object' ? sendOptions : {};
+    const options = toString.call(sendOptions) === '[object Object]' ? (sendOptions as SendOptions) : {};
 
     // get sender
     const sender: AwaitableSender = await this.getSender(target, connection);
