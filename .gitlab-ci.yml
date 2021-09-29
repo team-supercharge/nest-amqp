@@ -1,0 +1,9 @@
+include:
+  - https://gitlab.com/team-supercharge/jarvis/jarvis/raw/v6.0.0/jarvis.yml
+
+stages:
+  - lint
+
+commitlint:
+  extends: .jarvis-commitlint
+  stage: lint
