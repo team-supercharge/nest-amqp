@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [3.0.4-gitlab-ci-2a5cf989.0](https://github.com/team-supercharge/test-nest-amqp/compare/v3.0.3...v3.0.4-gitlab-ci-2a5cf989.0) (2021-09-30)
+
 ### 3.0.3 (2021-09-08)
 
 
