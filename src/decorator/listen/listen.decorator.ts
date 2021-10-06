@@ -3,10 +3,11 @@ import { AMQP_DEFAULT_CONNECTION_TOKEN, QUEUE_LISTEN_METADATA_KEY } from '../../
 
 import { ListenerMetadata } from '../../domain';
 import { ListenOptions } from '../../interface';
+import { Source } from 'rhea-promise';
 
 interface ListenOverload {
-  (source: string, connection?: string): MethodDecorator;
-  <T>(source: string, options: ListenOptions<T>, connection?: string): MethodDecorator;
+  (source: string | Source, connection?: string): MethodDecorator;
+  <T>(source: string | Source, options: ListenOptions<T>, connection?: string): MethodDecorator;
 }
 
 /**
@@ -27,7 +28,7 @@ interface ListenOverload {
  * @public
  */
 export const Listen: ListenOverload = <T>(
-  source: string,
+  source: string | Source,
   listenOptions?: ListenOptions<T> | string,
   connectionName?: string,
 ): MethodDecorator => {
