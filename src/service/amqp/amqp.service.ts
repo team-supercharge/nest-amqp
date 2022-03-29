@@ -9,6 +9,7 @@ import {
   Receiver,
   ReceiverEvents,
   SenderEvents,
+  Source,
 } from 'rhea-promise';
 import { URL } from 'url';
 
@@ -130,7 +131,7 @@ export class AMQPService {
     try {
       await connection.open();
     } catch (error) {
-      logger.error(`connection error: ${error.message}`, error);
+      logger.error(`connection error: ${(error as Error).message}`, (error as Error).stack);
 
       if (throwExceptionOnConnectionError === true) {
         throw error;
@@ -142,8 +143,6 @@ export class AMQPService {
 
     return connection;
   }
-
-  constructor() {}
 
   /**
    * Returns the connection object with which the AMQP connection was created.
@@ -213,7 +212,7 @@ export class AMQPService {
   /**
    * Creates a receiver object which will send the message to the given queue.
    *
-   * @param {string} queueName Name of the queue.
+   * @param {string} source Name of the queue.
    * @param {number} credits How many message can be processed parallel.
    * @param {function(context: EventContext): Promise<void>} onMessage Function what will be invoked when a message arrives.
    * @param {string} [connectionName] Name of the connection the receiver is on
@@ -221,7 +220,7 @@ export class AMQPService {
    * @return {Receiver} Receiver.
    */
   public async createReceiver(
-    queueName: string,
+    source: string | Source,
     credits: number,
     onMessage: (context: EventContext) => Promise<void>,
     connectionName: string = AMQP_DEFAULT_CONNECTION_TOKEN,
@@ -243,7 +242,7 @@ export class AMQPService {
     const receiver: Receiver = await connection.createReceiver({
       onError,
       onMessage,
-      source: queueName,
+      source,
       autoaccept: false,
       credit_window: 0,
     });

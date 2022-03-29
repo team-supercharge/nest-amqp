@@ -14,7 +14,7 @@ describe('QueueModule', () => {
   const moduleOptions: QueueModuleOptions = {
     connectionUri,
   };
-  const originalModuleProviders = (QueueModule as any).moduleDefinition.providers;
+  const originalModuleProviders = QueueModule['moduleDefinition'].providers;
   let module: TestingModule;
 
   @Injectable()
@@ -67,13 +67,13 @@ describe('QueueModule', () => {
   class TestGlobalFeatureModule {}
 
   afterEach(async () => {
-    ((AMQConnectionOptionsStorage as any).storage as Map<string, any>).clear();
-    ((AMQConnectionStorage as any).storage as Map<string, any>).clear();
+    AMQConnectionOptionsStorage['storage'].clear();
+    AMQConnectionStorage['storage'].clear();
 
     await module?.close();
 
-    (QueueModule as any).moduleDefinition.imports = [];
-    (QueueModule as any).moduleDefinition.providers = originalModuleProviders;
+    QueueModule['moduleDefinition'].imports = [];
+    QueueModule['moduleDefinition'].providers = originalModuleProviders;
   });
 
   describe('forRoot()', () => {
@@ -178,7 +178,7 @@ describe('QueueModule', () => {
 
       const forFeatureTestService = module.get<TestForFeatureService>(TestForFeatureService);
 
-      expect((forFeatureTestService.queueService as any).amqpService.getConnectionOptions()).toEqual(moduleOptions);
+      expect(forFeatureTestService.queueService['amqpService'].getConnectionOptions()).toEqual(moduleOptions);
     });
 
     it('should import as feature module, with module options for connection', async () => {
@@ -196,7 +196,7 @@ describe('QueueModule', () => {
 
       const forFeatureTestService = module.get<TestForFeatureService>(TestForFeatureService);
 
-      expect((forFeatureTestService.queueService as any).amqpService.getConnectionOptions()).toEqual(moduleOptions);
+      expect(forFeatureTestService.queueService['amqpService'].getConnectionOptions()).toEqual(moduleOptions);
     });
   });
 
@@ -280,8 +280,8 @@ describe('QueueModule', () => {
         Test.createTestingModule({
           imports: [QueueModule.forRootAsync({})],
         });
-      } catch (e) {
-        expect(e.message).toBe('Must provide factory, class or existing provider');
+      } catch (error) {
+        expect((error as Error).message).toEqual('Must provide factory, class or existing provider');
       }
     });
   });
