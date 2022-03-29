@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## 3.1.0 (2022-03-29)
+
+
+### Features
+
+* **listen:** add support for Source in listener ([2cb6ee8](https://github.com/team-supercharge/nest-amqp/commit/2cb6ee829b18bfcc318bb5e5c763e3370f02e44c)), closes [#49](https://github.com/team-supercharge/nest-amqp/issues/49)
+
 ### 3.0.3 (2021-09-08)
 
 
