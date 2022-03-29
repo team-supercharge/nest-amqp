@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { AwaitableSender, EventContext, Receiver } from 'rhea-promise';
+import { AwaitableSender, EventContext, Receiver, Source, filter } from 'rhea-promise';
 import { Expose } from 'class-transformer';
 import { IsString } from 'class-validator';
 
@@ -32,8 +32,8 @@ describe('QueueService', () => {
   const getReceiver = (service: QueueService, queueName: string, connectionName: string): Receiver => {
     return (service as any).receivers.get((service as any).getLinkToken(queueName, connectionName));
   };
-  const getMessageHandler = (amqpService: AMQPService): ((context: EventContext) => Promise<void>) => {
-    return (amqpService.createReceiver as any).mock.calls[0][2];
+  const getMessageHandler = (service: AMQPService): ((context: EventContext) => Promise<void>) => {
+    return (service.createReceiver as any).mock.calls[0][2];
   };
   const getInternallyCreatedMessageControl = (): MessageControl => {
     return (MessageControl as jest.Mock).mock.instances[0];
@@ -81,19 +81,34 @@ describe('QueueService', () => {
     expect(queueService).toBeDefined();
   });
 
-  it('should listen to a queue', async () => {
+  it('should listen to a queue given by the queue name', async () => {
     const spy = jest.spyOn(queueService, 'getReceiver' as any);
 
     await queueService.listen(defaultQueue, () => void 0, {});
 
     expect(spy).toBeCalled();
+    expect(spy.mock.calls[0][0]).toEqual('test');
+  });
+
+  it('should listen to a queue given by a Source object', async () => {
+    const spy = jest.spyOn(queueService, 'getReceiver' as any);
+
+    const source: Source = {
+      address: defaultQueue,
+      filter: filter.selector("(JMSDeliveryMode = 'PERSISTENT') OR (JMSCorrelationID) <> ''"),
+    };
+
+    await queueService.listen(source, () => void 0, {});
+
+    expect(spy).toBeCalled();
+    expect(spy.mock.calls[0][0]).toEqual(source);
   });
 
   describe('receiver', () => {
     it('should create a receiver', async () => {
       await queueService.listen(defaultQueue, () => void 0, {});
 
-      expect((queueService as any).receivers.size).toBe(1);
+      expect(queueService['receivers'].size).toBe(1);
     });
 
     describe('message handling', () => {
@@ -336,25 +351,25 @@ describe('QueueService', () => {
   });
 
   it('should clear links', async () => {
-    await (queueService as any).getSender('queueName', AMQP_DEFAULT_CONNECTION_TOKEN);
+    await queueService['getSender']('queueName', AMQP_DEFAULT_CONNECTION_TOKEN);
 
     queueService.clearSenderAndReceiverLinks();
 
-    expect((queueService as any).senders.size).toBe(0);
+    expect(queueService['senders'].size).toBe(0);
   });
 
   describe('getReceiver()', () => {
     it('should create receiver if not exists yet', async () => {
-      await (queueService as any).getReceiver('queueName', 1, async () => {}, AMQP_DEFAULT_CONNECTION_TOKEN);
+      await queueService['getReceiver']('queueName', 1, async () => void 0, AMQP_DEFAULT_CONNECTION_TOKEN);
 
-      expect((queueService as any).receivers.size).toBe(1);
+      expect(queueService['receivers'].size).toBe(1);
     });
 
     it('should not create an existing receiver', async () => {
-      await (queueService as any).getReceiver('queueName', 1, async () => {}, AMQP_DEFAULT_CONNECTION_TOKEN);
-      await (queueService as any).getReceiver('queueName', 1, async () => {}, AMQP_DEFAULT_CONNECTION_TOKEN);
+      await queueService['getReceiver']('queueName', 1, async () => void 0, AMQP_DEFAULT_CONNECTION_TOKEN);
+      await queueService['getReceiver']('queueName', 1, async () => void 0, AMQP_DEFAULT_CONNECTION_TOKEN);
 
-      expect((queueService as any).receivers.size).toBe(1);
+      expect(queueService['receivers'].size).toBe(1);
     });
 
     it('should create different receivers for the same queue name but on different connections', async () => {
@@ -364,25 +379,25 @@ describe('QueueService', () => {
         B = 'B',
       }
 
-      await (queueService as any).getReceiver(queue, 1, async () => {}, connection.A);
-      await (queueService as any).getReceiver(queue, 1, async () => {}, connection.B);
+      await queueService['getReceiver'](queue, 1, async () => void 0, connection.A);
+      await queueService['getReceiver'](queue, 1, async () => void 0, connection.B);
 
-      expect((queueService as any).receivers.size).toBe(2);
+      expect(queueService['receivers'].size).toBe(2);
     });
   });
 
   describe('getSender()', () => {
     it('should create sender if not exists yet', async () => {
-      await (queueService as any).getSender('queueName', AMQP_DEFAULT_CONNECTION_TOKEN);
+      await queueService['getSender']('queueName', AMQP_DEFAULT_CONNECTION_TOKEN);
 
-      expect((queueService as any).senders.size).toBe(1);
+      expect(queueService['senders'].size).toBe(1);
     });
 
     it('should not create an existing sender', async () => {
-      await (queueService as any).getSender('queueName', AMQP_DEFAULT_CONNECTION_TOKEN);
-      await (queueService as any).getSender('queueName', AMQP_DEFAULT_CONNECTION_TOKEN);
+      await queueService['getSender']('queueName', AMQP_DEFAULT_CONNECTION_TOKEN);
+      await queueService['getSender']('queueName', AMQP_DEFAULT_CONNECTION_TOKEN);
 
-      expect((queueService as any).senders.size).toBe(1);
+      expect(queueService['senders'].size).toBe(1);
     });
 
     it('should create different senders for the same queue name but on different connections', async () => {
@@ -392,50 +407,50 @@ describe('QueueService', () => {
         B = 'B',
       }
 
-      await (queueService as any).getSender(queue, connection.A);
-      await (queueService as any).getSender(queue, connection.B);
+      await queueService['getSender'](queue, connection.A);
+      await queueService['getSender'](queue, connection.B);
 
-      expect((queueService as any).senders.size).toBe(2);
+      expect(queueService['senders'].size).toBe(2);
     });
   });
 
   it('should encode message', () => {
     const obj = { name: 'Peter' };
-    const result = (queueService as any).encodeMessage(obj);
+    const result = queueService['encodeMessage'](obj);
 
     expect(result).toEqual(JSON.stringify(obj));
   });
 
   describe('decodeMessage()', () => {
     it('should decode Buffer', () => {
-      const result = (queueService as any).decodeMessage(Buffer.from('{}'));
+      const result = queueService['decodeMessage'](Buffer.from('{}'));
 
       expect(result).toEqual({});
     });
 
     it('should with the argument itself if it is an object', () => {
       const obj = { name: 'Peter' };
-      const result = (queueService as any).decodeMessage(obj);
+      const result = queueService['decodeMessage'](obj);
 
       expect(result).toBe(obj);
     });
 
     it('should decode not object but valid values', () => {
-      const result = (queueService as any).decodeMessage('false');
+      const result = queueService['decodeMessage']('false');
 
       expect(result).toEqual(false);
     });
 
     it('should decode valid objects', () => {
       const obj = { a: 1, b: { c: 2 } };
-      const result = (queueService as any).decodeMessage(JSON.stringify(obj));
+      const result = queueService['decodeMessage'](JSON.stringify(obj));
 
       expect(result).toEqual(obj);
     });
 
     it('should throw error on invalid objects', () => {
       expect(() => {
-        (queueService as any).decodeMessage('{null}');
+        queueService['decodeMessage']('{null}');
       }).toThrowError(SyntaxError);
     });
   });

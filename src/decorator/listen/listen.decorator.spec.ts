@@ -9,19 +9,29 @@ describe('@Listen', () => {
 
   class Test {
     @Listen(queueName, {})
-    public method1() {}
+    public method1() {
+      return;
+    }
 
     @Listen(queueName, listenOptions)
-    public method2() {}
+    public method2() {
+      return;
+    }
 
     @Listen(queueName, 'test-connection')
-    public method3() {}
+    public method3() {
+      return;
+    }
 
     @Listen(queueName, listenOptions, 'test-connection')
-    public method4() {}
+    public method4() {
+      return;
+    }
 
     @Listen(queueName)
-    public [Symbol.for('foo')]() {}
+    public [Symbol.for('foo')]() {
+      return;
+    }
   }
 
   beforeEach(() => {

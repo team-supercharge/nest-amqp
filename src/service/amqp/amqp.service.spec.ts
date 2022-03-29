@@ -32,8 +32,8 @@ describe('AMQPService', () => {
     return mockCalls[mockCalls.length - 1];
   };
 
-  const spyStorageSet = jest.spyOn((AMQConnectionStorage as any).storage, 'set');
-  const spyStorageGet = jest.spyOn((AMQConnectionStorage as any).storage, 'get');
+  const spyStorageSet = jest.spyOn(AMQConnectionStorage['storage'], 'set');
+  const spyStorageGet = jest.spyOn(AMQConnectionStorage['storage'], 'get');
 
   beforeAll(() => {
     // mock the Connection constructor
@@ -53,7 +53,7 @@ describe('AMQPService', () => {
         linkOptions: options,
       })),
       _connection: {
-        dispatch: () => {},
+        dispatch: (): undefined => void 0,
       },
     }));
   });
@@ -65,8 +65,8 @@ describe('AMQPService', () => {
     receiverEvents = [];
     moduleOptions = { connectionUri };
 
-    ((AMQConnectionStorage as any).storage as Map<string, any>).clear();
-    ((AMQConnectionOptionsStorage as any).storage as Map<string, any>).clear();
+    AMQConnectionStorage['storage'].clear();
+    AMQConnectionOptionsStorage['storage'].clear();
     spyStorageSet.mockClear();
     spyStorageGet.mockClear();
 
@@ -78,8 +78,8 @@ describe('AMQPService', () => {
         },
         {
           provide: AMQP_CLIENT_TOKEN,
-          useFactory: async moduleOptions => {
-            connection = await AMQPService.createConnection(moduleOptions);
+          useFactory: async options => {
+            connection = await AMQPService.createConnection(options);
 
             return connection;
           },
@@ -105,17 +105,17 @@ describe('AMQPService', () => {
   });
 
   it('should create connection', async () => {
-    const connection = await AMQPService.createConnection({ connectionUri: connectionSecureUri });
+    const localConnection = await AMQPService.createConnection({ connectionUri: connectionSecureUri });
 
-    expect((connection as any).open).toHaveBeenCalled();
+    expect(localConnection.open).toHaveBeenCalled();
   });
 
   it('should create connection with special chars in username and password', async () => {
     const username = 'Jörg';
     const password = 'Gt|N#R=6$5(TE@rH"Pvc$7a';
-    const connectionUri = `amqps://${encodeURIComponent(username)}:${encodeURIComponent(password)}@localhost:5672`;
+    const localConnectionUri = `amqps://${encodeURIComponent(username)}:${encodeURIComponent(password)}@localhost:5672`;
 
-    await AMQPService.createConnection({ connectionUri });
+    await AMQPService.createConnection({ connectionUri: localConnectionUri });
 
     expect(getLastMockCall(Connection as any)[0]).toEqual(expect.objectContaining({ username, password }));
   });
@@ -274,11 +274,11 @@ describe('AMQPService', () => {
   });
 
   it('should successfully disconnect', async () => {
-    const connection = module.get<Connection>(getAMQConnectionToken());
+    const localConnection = module.get<Connection>(getAMQConnectionToken());
 
     await service.disconnect();
 
-    expect(connection.close).toBeCalled();
+    expect(localConnection.close).toBeCalled();
   });
 
   it('should create a sender', async () => {
@@ -300,7 +300,7 @@ describe('AMQPService', () => {
   });
 
   it('should create a receiver', async () => {
-    await service.createReceiver('queueName', 1, async () => {});
+    await service.createReceiver('queueName', 1, async () => void 0);
 
     expect(receiverEvents.length).toBeGreaterThan(0);
   });
@@ -308,7 +308,7 @@ describe('AMQPService', () => {
   it('should execute receiver events', async () => {
     const context = new EventContextMock();
     const spy = jest.spyOn(context.receiver, 'address', 'get');
-    await service.createReceiver('queueName', 1, async () => {});
+    await service.createReceiver('queueName', 1, async () => void 0);
 
     receiverEvents.forEach(event => event.callback(context));
 
@@ -320,7 +320,7 @@ describe('AMQPService', () => {
   it('should add credits', async () => {
     const context = new EventContextMock();
     const addCredits = 10;
-    await service.createReceiver('queueName', addCredits, async () => {});
+    await service.createReceiver('queueName', addCredits, async () => void 0);
 
     receiverEvents.forEach(event => event.callback(context));
 
@@ -349,7 +349,7 @@ describe('AMQPService', () => {
     const connectionName = 'testConnection';
 
     beforeEach(() => {
-      ((AMQConnectionStorage as any).storage as Map<string, any>).clear();
+      (AMQConnectionStorage['storage'] as Map<string, any>).clear();
       spyStorageSet.mockClear();
       spyStorageGet.mockClear();
 
@@ -389,14 +389,14 @@ describe('AMQPService', () => {
       expect(senderEvents.length).toBeGreaterThan(0);
     });
 
-    it('should throw error while trying to create sender on nonexistant connection', async () => {
+    it('should throw error while trying to create sender on nonexistent connection', async () => {
       await AMQPService.createConnection({ connectionUri: connectionSecureUri }, connectionName);
 
       try {
         await service.createSender('testQueue', 'nonExisting');
         expect.assertions(1);
-      } catch (e) {
-        expect(e.message).toBe('No connection found for name nonExisting');
+      } catch (error) {
+        expect((error as Error).message).toBe('No connection found for name nonExisting');
       }
 
       expect(spyStorageGet.mock.calls.length).toEqual(1);
@@ -407,19 +407,19 @@ describe('AMQPService', () => {
     it('should create receiver on connection', async () => {
       await AMQPService.createConnection({ connectionUri: connectionSecureUri }, connectionName);
 
-      await service.createReceiver('testQueue', 1, async () => {}, connectionName);
+      await service.createReceiver('testQueue', 1, async () => void 0, connectionName);
 
       expect(receiverEvents.length).toBeGreaterThan(0);
     });
 
-    it('should throw error while trying to create receiver on nonexistant connection', async () => {
+    it('should throw error while trying to create receiver on nonexistent connection', async () => {
       await AMQPService.createConnection({ connectionUri: connectionSecureUri }, connectionName);
 
       try {
-        await service.createReceiver('testQueue', 1, async () => {}, 'nonExisting');
+        await service.createReceiver('testQueue', 1, async () => void 0, 'nonExisting');
         expect.assertions(1);
-      } catch (e) {
-        expect(e.message).toBe('No connection found for name nonExisting');
+      } catch (error) {
+        expect((error as Error).message).toBe('No connection found for name nonExisting');
       }
 
       expect(spyStorageGet.mock.calls.length).toEqual(1);

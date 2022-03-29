@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AwaitableSender, Delivery, EventContext, Message, Receiver } from 'rhea-promise';
+import { AwaitableSender, Delivery, EventContext, Message, Receiver, Source } from 'rhea-promise';
 
 import {
   extendObject,
@@ -47,18 +47,20 @@ export class QueueService {
    * @public
    */
   public async listen<T>(
-    queueName: string,
+    source: string | Source,
     callback: (object: T, control: MessageControl) => Promise<void>,
     options: ListenOptions<T>,
     connection: string = AMQP_DEFAULT_CONNECTION_TOKEN,
   ): Promise<void> {
+    const sourceToken = typeof source === 'string' ? source : source.address;
+
     // get receiver
     const initialCredit = !!options && options.parallelMessageProcessing ? options.parallelMessageProcessing : PARALLEL_MESSAGE_COUNT;
     const transformerOptions = !!options && options.transformerOptions ? options.transformerOptions : {};
     const validatorOptions = !!options && options.validatorOptions ? options.validatorOptions : {};
 
     const messageValidator = async (context: EventContext, control: MessageControl) => {
-      logger.verbose(`incoming message on queue '${queueName}'`);
+      logger.verbose(`incoming message on queue '${sourceToken}'`);
 
       const body: any = context.message.body;
       let object: T;
@@ -66,9 +68,8 @@ export class QueueService {
       // if not expecting parsed data
       if (!options || options.type === null || options.type === undefined) {
         object = null;
-      }
-      // if expecting parsed data
-      else {
+      } else {
+        // if expecting parsed data
         let parsed: any;
 
         // parse body received as string from queue
@@ -78,7 +79,7 @@ export class QueueService {
           logger.error('cant decode message', body);
 
           // can't decode, need to reject message
-          control.reject(error.message);
+          control.reject((error as Error).message);
 
           return;
         }
@@ -112,20 +113,20 @@ export class QueueService {
 
           // istanbul ignore else
           if (error instanceof ValidationException) {
-            logger.error(`validation error ${queueName} (payload: ${JSON.stringify(parsed)}): ${error.message}`, error.stack);
+            logger.error(`validation error ${sourceToken} (payload: ${JSON.stringify(parsed)}): ${error.message}`, error.stack);
           } else {
-            const parsedError = tryParseJSON(error.message) || error.message;
+            const parsedError = tryParseJSON((error as Error).message) || (error as Error).message;
 
             logger.error(
-              `unexpected error happened during validation process on '${queueName}' (payload: ${JSON.stringify(
+              `unexpected error happened during validation process on '${sourceToken}' (payload: ${JSON.stringify(
                 parsed,
               )}): ${parsedError.toString()}`,
-              error,
+              (error as Error).stack,
             );
           }
 
           // can't validate, need to reject message
-          control.reject(error.message);
+          control.reject((error as Error).message);
 
           return;
         }
@@ -136,7 +137,7 @@ export class QueueService {
         const startTime = new Date();
         await callback(object, control);
         const durationInMs = new Date().getTime() - startTime.getTime();
-        logger.log(`handling '${queueName}' finished in ${durationInMs} (ms)`);
+        logger.log(`handling '${sourceToken}' finished in ${durationInMs} (ms)`);
 
         // handle auto-accept when message is otherwise not handled
         // istanbul ignore next
@@ -144,13 +145,13 @@ export class QueueService {
           control.accept();
         }
       } catch (error) {
-        logger.error(`error in callback on queue '${queueName}': ${error.message}`, error);
+        logger.error(`error in callback on queue '${sourceToken}': ${(error as Error).message}`, (error as Error).stack);
 
         // can't process callback, need to reject message
-        control.reject(error.message);
+        control.reject((error as Error).message);
       }
 
-      logger.verbose(`handled message on queue '${queueName}'`);
+      logger.verbose(`handled message on queue '${sourceToken}'`);
     };
 
     const messageHandler = async (context: EventContext) => {
@@ -161,7 +162,7 @@ export class QueueService {
         control.reject(error.message);
       });
     };
-    await this.getReceiver(queueName, initialCredit, messageHandler, connection);
+    await this.getReceiver(source, initialCredit, messageHandler, connection);
   }
 
   /**
@@ -295,19 +296,21 @@ export class QueueService {
   }
 
   private async getReceiver(
-    queueName: string,
+    source: string | Source,
     credit: number,
     messageHandler: (context: EventContext) => Promise<void>,
     connection: string,
   ): Promise<Receiver> {
     let receiver;
 
-    const receiverToken = this.getLinkToken(queueName, connection);
+    const sourceToken = typeof source === 'string' ? source : JSON.stringify(source);
+
+    const receiverToken = this.getLinkToken(sourceToken, connection);
 
     if (this.receivers.has(receiverToken)) {
       receiver = this.receivers.get(receiverToken);
     } else {
-      receiver = await this.amqpService.createReceiver(queueName, credit, messageHandler.bind(this), connection);
+      receiver = await this.amqpService.createReceiver(source, credit, messageHandler.bind(this), connection);
 
       this.receivers.set(receiverToken, receiver);
     }
@@ -315,15 +318,15 @@ export class QueueService {
     return receiver;
   }
 
-  private async getSender(queueName: string, connection: string): Promise<AwaitableSender> {
+  private async getSender(target: string, connection: string): Promise<AwaitableSender> {
     let sender;
 
-    const senderToken = this.getLinkToken(queueName, connection);
+    const senderToken = this.getLinkToken(target, connection);
 
     if (this.senders.has(senderToken)) {
       sender = this.senders.get(senderToken);
     } else {
-      sender = await this.amqpService.createSender(queueName, connection);
+      sender = await this.amqpService.createSender(target, connection);
 
       this.senders.set(senderToken, sender);
     }
@@ -341,13 +344,11 @@ export class QueueService {
     }
 
     const objectLike: string = message instanceof Buffer ? message.toString() : (message as string);
-    const object = JSON.parse(objectLike);
-
-    return object;
+    return JSON.parse(objectLike);
   }
 
-  private getLinkToken(queue: string, connection: string): string {
-    return `${connection}:${queue}`;
+  private getLinkToken(sourceToken: string, connection: string): string {
+    return `${connection}:${sourceToken}`;
   }
 }
 

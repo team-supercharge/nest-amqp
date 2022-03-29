@@ -1,3 +1,4 @@
+import { Source } from 'rhea-promise';
 import { ListenOptions } from '../interface';
 
 /* eslint-disable @typescript-eslint/ban-types */
@@ -9,35 +10,48 @@ export class ListenerMetadata<T> {
   /**
    * The method that should be executed once the message is transformed (and validated if needed)
    */
-  public callback: any;
+  public readonly callback: any;
 
   /**
    * Name of the method
    */
-  public callbackName: string;
+  public readonly callbackName: string;
 
   /**
    * Name of the queue the handler will handle
    */
-  public source: string;
+  public readonly source: string | Source;
 
   /**
    * ListenOptions provided to the `@Listener` decorator
    */
-  public options: ListenOptions<T>;
+  public readonly options: ListenOptions<T>;
 
   /**
    * The name of Class the method belongs to
    */
-  public targetName: string;
+  public readonly targetName: string;
 
   /**
    * The Class the method belongs to
    */
-  public target: object;
+  public readonly target: object;
 
   /**
    * Connection the listener should be using
    */
-  public connection: string;
+  public readonly connection: string;
+
+  // istanbul ignore next
+  constructor(metadata: ListenerMetadata<T>) {
+    this.connection = metadata?.connection;
+    this.source = metadata?.source;
+    this.options = metadata?.options;
+
+    this.callback = metadata?.callback;
+    this.callbackName = metadata?.callbackName;
+
+    this.targetName = metadata?.targetName;
+    this.target = metadata?.target;
+  }
 }
