@@ -42,21 +42,21 @@ export class AMQPService {
    * ```
    *
    * @param {QueueModuleOptions} options Options for the module.
-   * @param {string} [connectionName] Name of the connection that is created
+   * @param {string} [connectionToken] Name of the connection that is created
    *
    * @return {Connection} The created `rhea-promise` Connection.
    * @static
    */
   public static async createConnection(
     options: AMQPConnectionOptions,
-    connectionName: string = AMQP_DEFAULT_CONNECTION_TOKEN,
+    connectionToken: string = AMQP_DEFAULT_CONNECTION_TOKEN,
   ): Promise<Connection> {
     if (Object.prototype.toString.call(options) !== '[object Object]') {
       throw new Error('AMQPModule connection options must an object');
     }
 
     logger.log('creating AMQP client');
-    logger.log(`connection options: ${JSON.stringify(options)}, connection name: ${connectionName}`);
+    logger.log(`connection options: ${JSON.stringify(options)}, connection name: ${connectionToken}`);
 
     const { throwExceptionOnConnectionError, connectionUri, connectionOptions: rheaConnectionOptions } = options;
     const parsedConnectionUri = new URL(connectionUri);
@@ -139,7 +139,7 @@ export class AMQPService {
     }
     logger.log('created AMQP connection');
 
-    AMQConnectionStorage.add(connectionName, connection);
+    AMQConnectionStorage.add(connectionToken, connection);
 
     return connection;
   }
@@ -215,7 +215,7 @@ export class AMQPService {
    * @param {string} source Name of the queue.
    * @param {number} credits How many message can be processed parallel.
    * @param {function(context: EventContext): Promise<void>} onMessage Function what will be invoked when a message arrives.
-   * @param {string} [connectionName] Name of the connection the receiver is on
+   * @param {string} [connectionToken] Name of the connection the receiver is on
    *
    * @return {Receiver} Receiver.
    */
@@ -223,7 +223,7 @@ export class AMQPService {
     source: string | Source,
     credits: number,
     onMessage: (context: EventContext) => Promise<void>,
-    connectionName: string = AMQP_DEFAULT_CONNECTION_TOKEN,
+    connectionToken: string = AMQP_DEFAULT_CONNECTION_TOKEN,
   ): Promise<Receiver> {
     const onError = (context: EventContext) => {
       logger.error(
@@ -233,10 +233,10 @@ export class AMQPService {
       );
     };
 
-    const connection = AMQConnectionStorage.get(connectionName);
+    const connection = AMQConnectionStorage.get(connectionToken);
 
     if (!connection) {
-      throw new Error(`No connection found for name ${connectionName}`);
+      throw new Error(`No connection found for name ${connectionToken}`);
     }
 
     const receiver: Receiver = await connection.createReceiver({
