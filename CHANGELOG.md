@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### 3.1.2 (2022-04-26)
+
+
+### Bug Fixes
+
+* **amqp-service:** rename connectionName to connectionToken ([bc3b144](https://github.com/team-supercharge/nest-amqp/commit/bc3b14457efed5efe988ad0ac2135520720086d9))
+
 ### 3.1.1 (2022-03-29)
 
 ## 3.1.0 (2022-03-29)
