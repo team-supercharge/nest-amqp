@@ -257,7 +257,7 @@ export class QueueService {
     const delivery: Delivery = await sender.send(messageToSend);
 
     // istanbul ignore next: SendState is dependent on broker, very hard to mock out
-    return delivery.sent ? SendState.Success : SendState.Failed;
+    return delivery.sent || delivery.settled ? SendState.Success : SendState.Failed;
   }
 
   /**
