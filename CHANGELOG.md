@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## 3.2.0 (2022-06-06)
+
+
+### Features
+
+* **class-transformer:** add support to v0.5.1 or newer v0.5.x versions ([38ad576](https://github.com/team-supercharge/nest-amqp/commit/38ad5760875c1bc0892975763916893e1d112673))
+
 ### 3.1.2 (2022-04-26)
 
 
