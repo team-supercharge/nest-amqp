@@ -16,7 +16,6 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "dist/index.js",
   "scripts": {
     "prebuild": "rimraf dist",
     "prebuild:prod": "rimraf dist",
