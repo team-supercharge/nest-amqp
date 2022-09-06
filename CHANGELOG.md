@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## 3.3.0 (2022-09-06)
+
+
+### Features
+
+* **nestjs:** add support to NestJS v9 ([7c70645](https://github.com/team-supercharge/nest-amqp/commit/7c70645e33e4d8dc9c349f14468160155a2bca20))
+
 ### 3.2.2 (2022-09-02)
 
 ### 3.2.1 (2022-06-13)
