@@ -55,9 +55,9 @@ export class QueueService {
     const sourceToken = typeof source === 'string' ? source : source.address;
 
     // get receiver
-    const initialCredit = !!options && options.parallelMessageProcessing ? options.parallelMessageProcessing : PARALLEL_MESSAGE_COUNT;
-    const transformerOptions = !!options && options.transformerOptions ? options.transformerOptions : {};
-    const validatorOptions = !!options && options.validatorOptions ? options.validatorOptions : {};
+    const initialCredit = options?.parallelMessageProcessing ?? PARALLEL_MESSAGE_COUNT;
+    const transformerOptions = options?.transformerOptions ?? {};
+    const validatorOptions = options?.validatorOptions ?? null;
 
     const messageValidator = async (context: EventContext, control: MessageControl) => {
       logger.verbose(`incoming message on queue '${sourceToken}'`);

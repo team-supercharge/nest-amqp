@@ -127,4 +127,10 @@ describe('ObjectValidator', () => {
       );
     });
   });
+
+  describe('found issues', () => {
+    it('should pass receiving a number', async () => {
+      await expect(service.validate(Number, 1)).resolves.toEqual(1);
+    });
+  });
 });
