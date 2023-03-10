@@ -37,7 +37,7 @@ export class ObjectValidatorService {
     }
 
     const transformerOptions = options?.transformerOptions ?? {};
-    const validatorOptions = options?.validatorOptions ?? {};
+    const validatorOptions = options?.validatorOptions ?? null;
 
     const object: T = plainToClass<T, unknown>(type, plain, { strategy: 'excludeAll', ...transformerOptions });
 
