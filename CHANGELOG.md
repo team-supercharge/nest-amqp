@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### 3.3.2 (2023-03-10)
+
+
+### Bug Fixes
+
+* **queue-service:** issue with empty object as validator options ([05c5ce8](https://github.com/team-supercharge/nest-amqp/commit/05c5ce86521b1955aa6687b3ccdb29bbc81623af))
+
 ### 3.3.1 (2023-03-10)
 
 ## 3.3.0 (2022-09-06)
