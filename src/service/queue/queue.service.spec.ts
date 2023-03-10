@@ -163,10 +163,24 @@ describe('QueueService', () => {
         expect(messageControl.reject).toHaveBeenCalledWith(expect.stringMatching(/Unexpected token/));
       });
 
-      it('should not validate parsed body if explicitly specified', async () => {
+      it('should not validate parsed body if explicitly specified (deprecated)', async () => {
         const callback = jest.fn();
         const body = { a: 1, b: 2 };
         await queueService.listen(defaultQueue, callback, { type: '', noValidate: true } as any);
+        const messageHandler = getMessageHandler(amqpService);
+        const eventContext = new EventContextMock();
+        eventContext.message.body = JSON.stringify(body);
+
+        await messageHandler(eventContext);
+
+        const messageControl = getInternallyCreatedMessageControl();
+        expect(callback).toHaveBeenCalledWith(body, messageControl);
+      });
+
+      it('should not validate parsed body if explicitly specified', async () => {
+        const callback = jest.fn();
+        const body = { a: 1, b: 2 };
+        await queueService.listen(defaultQueue, callback, { type: '', skipValidation: true } as any);
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
         eventContext.message.body = JSON.stringify(body);

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ClassTransformOptions, plainToClass } from 'class-transformer';
+import { ClassTransformOptions, plainToInstance } from 'class-transformer';
 import { validate, ValidationError, ValidatorOptions } from 'class-validator';
 
 import { ValidationException, ValidationNullObjectException } from '../../util/exceptions';
@@ -39,7 +39,7 @@ export class ObjectValidatorService {
     const transformerOptions = options?.transformerOptions ?? {};
     const validatorOptions = options?.validatorOptions ?? null;
 
-    const object: T = plainToClass<T, unknown>(type, plain, { strategy: 'excludeAll', ...transformerOptions });
+    const object: T = plainToInstance<T, unknown>(type, plain, { strategy: 'excludeAll', ...transformerOptions });
 
     const errors = await validate(object as any, validatorOptions);
 
@@ -74,7 +74,7 @@ export class ObjectValidatorService {
 
     const transformerOptions = options?.transformerOptions ?? {};
     const validatorOptions = options?.validatorOptions ?? {};
-    const objects: T[] = plainToClass<T, unknown>(type, plains, { strategy: 'excludeAll', ...transformerOptions });
+    const objects: T[] = plainToInstance<T, unknown>(type, plains, { strategy: 'excludeAll', ...transformerOptions });
     const errors: ValidationError[] = [];
 
     for (const object of objects) {
