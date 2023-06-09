@@ -43,6 +43,15 @@ export interface ListenOptions<T> extends ObjectValidationOptions {
    * @default false
    */
   acceptValidationNullObjectException?: boolean;
+
+    /**
+   * Should flag the service whether it.
+   *
+   * Allows for rejecting message without any processing in order to avoid future same errors.
+   *
+   * @default false
+   */
+  rejectEmptyBody?: boolean;
 }
 
 /**
