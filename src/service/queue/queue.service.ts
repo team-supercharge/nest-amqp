@@ -63,6 +63,14 @@ export class QueueService {
       logger.verbose(`incoming message on queue '${sourceToken}'`);
 
       const body: any = context.message.body;
+
+      if (options && options.rejectEmptyBody) {
+        if (context.message.body === undefined || context.message.body === null || context.message.body.isEmpty()) {
+          control.reject(context.message);
+        }
+      }
+
+
       let object: T;
 
       // if not expecting parsed data
