@@ -1,6 +1,6 @@
 {
   "name": "@team-supercharge/nest-amqp",
-  "version": "3.3.2",
+  "version": "3.4.0",
   "description": "AMQP 1.0 module for Nest framework",
   "author": "Supercharge",
   "license": "MIT",
@@ -75,8 +75,8 @@
     "typescript": "4.3.5"
   },
   "peerDependencies": {
-    "@nestjs/common": "^6.0.0 || ^7.0.0 || ^8.0.0 || ^9.0.0",
-    "@nestjs/core": "^6.0.0 || ^7.0.0 || ^8.0.0 || ^9.0.0",
+    "@nestjs/common": "^6.0.0 || ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0",
+    "@nestjs/core": "^6.0.0 || ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0",
     "class-transformer": "^0.3.0 || ^0.4.0 || ^0.5.1",
     "class-validator": ">=0.13.2"
   }
