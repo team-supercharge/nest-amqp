@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { isDefined } from 'class-validator';
 import { AwaitableSender, Delivery, EventContext, Message, Receiver, Source } from 'rhea-promise';
 
 import {
@@ -12,9 +13,11 @@ import {
 } from '../../util';
 import { MessageControl } from '../../domain';
 import { SendState } from '../../enum';
-import { AMQPService, ObjectValidatorService } from '..';
 import { ListenOptions, SendOptions } from '../../interface';
 import { AMQP_DEFAULT_CONNECTION_TOKEN } from '../../constant';
+
+import { AMQPService } from '../amqp/amqp.service';
+import { ObjectValidatorService } from '../object-validator/object-validator.service';
 
 const PARALLEL_MESSAGE_COUNT = 1;
 const toString = Object.prototype.toString;
@@ -39,16 +42,16 @@ export class QueueService {
    * objects when a new message arrives on the queue. If a receiver is already
    * created for the given queue then a new receiver won't be created.
    *
-   * @param {string} queueName Name of the queue.
-   * @param {function(object: T, control: MessageControl) => Promise<void>} callback Function what will invoked when message arrives.
+   * @param {string} source Name of the queue.
+   * @param {function(body: T, control: MessageControl, metadata: Omit<Message, 'body'>) => Promise<void>} callback Function what will invoked when message arrives.
    * @param {ListenOptions<T>} options Options for message processing.
-   * @param {string} [connection] Name of the connection
+   * @param {string} connection Name of the connection
    *
    * @public
    */
   public async listen<T>(
     source: string | Source,
-    callback: (object: T, control: MessageControl) => Promise<void>,
+    callback: (body: T, control: MessageControl, metadata: Omit<Message, 'body'>) => Promise<void>,
     options: ListenOptions<T>,
     connection: string = AMQP_DEFAULT_CONNECTION_TOKEN,
   ): Promise<void> {
@@ -62,21 +65,23 @@ export class QueueService {
     const messageValidator = async (context: EventContext, control: MessageControl) => {
       logger.verbose(`incoming message on queue '${sourceToken}'`);
 
-      const body: any = context.message.body;
-      let object: T;
+      const messageBody: any = context.message.body;
+      const metadata: Omit<Message, 'body'> = extendObject(context.message, { body: undefined });
+
+      let body: T;
 
       // if not expecting parsed data
-      if (!options || options.type === null || options.type === undefined) {
-        object = null;
+      if (!options || !isDefined(options.type)) {
+        body = null;
       } else {
         // if expecting parsed data
         let parsed: any;
 
         // parse body received as string from queue
         try {
-          parsed = this.decodeMessage(body);
+          parsed = this.decodeMessage(messageBody);
         } catch (error) {
-          logger.error('cant decode message', body);
+          logger.error('cant decode message', messageBody);
 
           // can't decode, need to reject message
           control.reject((error as Error).message);
@@ -89,11 +94,11 @@ export class QueueService {
           // Explanation: Class-transformer supports differentiating on type and using different classes, but currently the discriminator can only be
           // inside the nested object. This extra property will be deleted during transformation
           // istanbul ignore next
-          if (parsed && parsed.type && parsed.payload) {
+          if (isDefined(parsed?.type) && isDefined(parsed?.payload)) {
             parsed.payload.type = parsed.type;
           }
 
-          object =
+          body =
             options && (options.noValidate || options.skipValidation)
               ? parsed
               : await this.objectValidatorService.validate(options.type, parsed, { transformerOptions, validatorOptions });
@@ -135,7 +140,7 @@ export class QueueService {
       try {
         // run callback function
         const startTime = new Date();
-        await callback(object, control);
+        await callback(body, control, metadata);
         const durationInMs = new Date().getTime() - startTime.getTime();
         logger.log(`handling '${sourceToken}' finished in ${durationInMs} (ms)`);
 
@@ -171,8 +176,8 @@ export class QueueService {
    *
    * @param {string} target Name of the queue.
    * @param {T} message Message body.
-   * @param {SendOptions} [sendOptions] Options for message sending.
-   * @param {string} [connectionName] Name of the connection the Sender should be attached to
+   * @param {SendOptions} sendOptions Options for message sending.
+   * @param {string} connectionName Name of the connection the Sender should be attached to
    *
    * @return {Promise<SendState>} Result of sending the message.
    *
@@ -195,7 +200,7 @@ export class QueueService {
     let messageToSend: Message;
 
     // scheduling
-    if (schedule && schedule.cron) {
+    if (isDefined(schedule?.cron)) {
       // when using CRON syntax, simply add it to the message
       // NOD: not possible to use seconds
       messageToSend = {
@@ -204,7 +209,7 @@ export class QueueService {
           'x-opt-delivery-cron': schedule.cron,
         },
       };
-    } else if (schedule && schedule.divideMinute) {
+    } else if (schedule?.divideMinute) {
       const period = Math.floor(60000 / schedule.divideMinute);
       const repeat = schedule.divideMinute - 1;
 
@@ -218,7 +223,7 @@ export class QueueService {
           'x-opt-delivery-repeat': repeat,
         },
       };
-    } else if (schedule && schedule.afterSeconds) {
+    } else if (isDefined(schedule?.afterSeconds)) {
       const milliseconds = schedule.afterSeconds * 1000;
       const now = new Date();
 
@@ -245,7 +250,7 @@ export class QueueService {
 
     // TTL handling
     // istanbul ignore if
-    if (options && options.ttl) {
+    if (isDefined(options?.ttl)) {
       logger.debug(`setting ttl on message with ${options.ttl} ms`);
 
       messageToSend.ttl = options.ttl;
