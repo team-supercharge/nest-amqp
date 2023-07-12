@@ -10,7 +10,7 @@ export class ListenerMetadata<T> {
   /**
    * The method that should be executed once the message is transformed (and validated if needed)
    */
-  public readonly callback: any;
+  public readonly callback: Function;
 
   /**
    * Name of the method

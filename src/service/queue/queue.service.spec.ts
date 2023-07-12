@@ -160,13 +160,14 @@ describe('QueueService', () => {
         await messageHandler(eventContext);
 
         const messageControl = getInternallyCreatedMessageControl();
-        expect(messageControl.reject).toHaveBeenCalledWith(expect.stringMatching(/Unexpected token/));
+        // in node 20 error message on JSON parsing became more informative, hence the regex
+        expect(messageControl.reject).toHaveBeenCalledWith(expect.stringMatching(/^(Expected|Unexpected token)/));
       });
 
       it('should not validate parsed body if explicitly specified (deprecated)', async () => {
         const callback = jest.fn();
         const body = { a: 1, b: 2 };
-        await queueService.listen(defaultQueue, callback, { type: '', noValidate: true } as any);
+        await queueService.listen(defaultQueue, callback, { type: '', skipValidation: true } as any);
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
         eventContext.message.body = JSON.stringify(body);
@@ -174,7 +175,7 @@ describe('QueueService', () => {
         await messageHandler(eventContext);
 
         const messageControl = getInternallyCreatedMessageControl();
-        expect(callback).toHaveBeenCalledWith(body, messageControl);
+        expect(callback).toHaveBeenCalledWith(body, messageControl, eventContext.message);
       });
 
       it('should not validate parsed body if explicitly specified', async () => {
@@ -188,7 +189,7 @@ describe('QueueService', () => {
         await messageHandler(eventContext);
 
         const messageControl = getInternallyCreatedMessageControl();
-        expect(callback).toHaveBeenCalledWith(body, messageControl);
+        expect(callback).toHaveBeenCalledWith(body, messageControl, eventContext.message);
       });
 
       it('should successfully validate and transform parsed body', async () => {
