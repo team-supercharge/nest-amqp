@@ -386,6 +386,20 @@ the connections defined in the `forRoot` method contains a connection named `Con
 > Note: If you leave out the name of the connection, the listener will be attached to the default connection (if exists).
 
 
+### Removing a listener
+
+If you want to remove a listener, you can use the `removeListener()` method of the `QueueService`. The method's first parameter is the name string or `Source` object of the queue, and the second (optional) parameter is the connection name if you have set it up. Here is an example:
+
+```typescript
+// with the default connection
+await this.queueService.removeListener('example');
+```
+
+```typescript
+// with named connection
+await this.queueService.removeListener('example', Connections.TEST);
+```
+
 ### Message control
 
 When a new message arrives at a queue, the assigned method with `@Listen()` decorator receives the transformed and validated message body
