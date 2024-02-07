@@ -61,7 +61,7 @@ describe('QueueService', () => {
         {
           provide: AMQPService,
           useValue: {
-            createReceiver: jest.fn().mockResolvedValue(jest.fn()),
+            createReceiver: jest.fn().mockResolvedValue(jest.fn().mockResolvedValue(new EventContextMock().receiver)),
             createSender: jest.fn().mockResolvedValue(new EventContextMock().sender),
             disconnect: jest.fn().mockResolvedValue(jest.fn()),
             getModuleOptions(): QueueModuleOptions {
@@ -346,6 +346,62 @@ describe('QueueService', () => {
       const sender = getSender(queueService, defaultQueue, connection);
 
       expect(sender.send).toHaveBeenCalledWith({ body: 'null', message_annotations: { 'x-opt-delivery-delay': delay * 1000 } });
+    });
+  });
+
+  describe('removeListener()', () => {
+    it('should remove listener', async () => {
+      (amqpService.createReceiver as jest.Mock).mockResolvedValue(new EventContextMock().receiver);
+      await queueService.listen(defaultQueue, () => void 0, {});
+      expect(queueService['receivers'].size).toBe(1);
+
+      const receiver = queueService['receivers'].get(queueService['receivers'].keys().next().value);
+
+      const result = await queueService.removeListener(defaultQueue);
+      expect(receiver.close).toBeCalled();
+      expect(result).toBe(true);
+      expect(queueService['receivers'].size).toBe(0);
+    });
+
+    it('should remove listener with connectionName', async () => {
+      (amqpService.createReceiver as jest.Mock).mockResolvedValue(new EventContextMock().receiver);
+      const connection = 'test_connection';
+      await queueService.listen(defaultQueue, () => void 0, {}, connection);
+
+      const receiver = queueService['receivers'].get(queueService['receivers'].keys().next().value);
+
+      expect(queueService['receivers'].size).toBe(1);
+
+      const result = await queueService.removeListener(defaultQueue, connection);
+      expect(receiver.close).toBeCalled();
+      expect(result).toBe(true);
+      expect(queueService['receivers'].size).toBe(0);
+    });
+
+    it('should remove listener with Source object', async () => {
+      (amqpService.createReceiver as jest.Mock).mockResolvedValue(new EventContextMock().receiver);
+      const source: Source = {
+        address: defaultQueue,
+        filter: filter.selector("((JMSCorrelationID) <> ''"),
+      };
+      await queueService.listen(source, () => void 0, {});
+      expect(queueService['receivers'].size).toBe(1);
+      const receiver = queueService['receivers'].get(queueService['receivers'].keys().next().value);
+
+      const result = await queueService.removeListener(source);
+      expect(receiver.close).toBeCalled();
+      expect(result).toBe(true);
+      expect(queueService['receivers'].size).toBe(0);
+    });
+
+    it('should not do anything with non-existing listener', async () => {
+      (amqpService.createReceiver as jest.Mock).mockResolvedValue(new EventContextMock().receiver);
+      await queueService.listen(defaultQueue, () => void 0, {});
+      expect(queueService['receivers'].size).toBe(1);
+
+      const result = await queueService.removeListener('otherQueue');
+      expect(result).toBe(false);
+      expect(queueService['receivers'].size).toBe(1);
     });
   });
 

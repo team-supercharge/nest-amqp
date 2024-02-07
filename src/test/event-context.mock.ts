@@ -29,7 +29,7 @@ export class EventContextMock implements EventContext {
     },
     credit: 0,
     addCredit: jest.fn(),
-    close: jest.fn().mockResolvedValue(true),
+    close: jest.fn(() => true),
   };
   public sender: any = {
     send: jest.fn().mockResolvedValue({ sent: true }),

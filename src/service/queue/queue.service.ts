@@ -42,7 +42,7 @@ export class QueueService {
    * objects when a new message arrives on the queue. If a receiver is already
    * created for the given queue then a new receiver won't be created.
    *
-   * @param {string} source Name of the queue.
+   * @param {string} source Name or Source object of the queue.
    * @param {function(body: T, control: MessageControl, metadata: Omit<Message, 'body'>) => Promise<void>} callback Function what will invoked when message arrives.
    * @param {ListenOptions<T>} options Options for message processing.
    * @param {string} connection Name of the connection
@@ -300,27 +300,46 @@ export class QueueService {
     this.receivers.clear();
   }
 
+  /**
+   * Removes listener from active listeners
+   *
+   * @param {string} source Name or Source object of the queue.
+   * @param {string} connection Name of the connection
+   *
+   * @returns {Promise<boolean>} Returns true if listener was removed, otherwise false. If listener was not found, returns false.
+   *
+   * @public
+   */
+  public async removeListener(source: string | Source, connection: string = AMQP_DEFAULT_CONNECTION_TOKEN): Promise<boolean> {
+    const sourceToken = typeof source === 'string' ? source : JSON.stringify(source);
+    const receiverToken = this.getLinkToken(sourceToken, connection);
+
+    if (this.receivers.has(receiverToken)) {
+      const receiver = this.receivers.get(receiverToken);
+      await receiver.close();
+
+      return this.receivers.delete(receiverToken);
+    }
+
+    return false;
+  }
+
   private async getReceiver(
     source: string | Source,
     credit: number,
     messageHandler: (context: EventContext) => Promise<void>,
     connection: string,
   ): Promise<Receiver> {
-    let receiver;
-
     const sourceToken = typeof source === 'string' ? source : JSON.stringify(source);
 
     const receiverToken = this.getLinkToken(sourceToken, connection);
 
-    if (this.receivers.has(receiverToken)) {
-      receiver = this.receivers.get(receiverToken);
-    } else {
-      receiver = await this.amqpService.createReceiver(source, credit, messageHandler.bind(this), connection);
-
+    if (!this.receivers.has(receiverToken)) {
+      const receiver = await this.amqpService.createReceiver(source, credit, messageHandler.bind(this), connection);
       this.receivers.set(receiverToken, receiver);
     }
 
-    return receiver;
+    return this.receivers.get(receiverToken);
   }
 
   private async getSender(target: string, connection: string): Promise<AwaitableSender> {
