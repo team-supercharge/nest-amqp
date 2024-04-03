@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## 3.6.0 (2024-02-07)
+
+
+### Features
+
+* **queue-service:** add `removeListener` method ([e3f16e3](https://github.com/team-supercharge/nest-amqp/commit/e3f16e37e28555723eef6869015afa8870298d1f)), closes [#70](https://github.com/team-supercharge/nest-amqp/issues/70)
+
 ### 3.5.1 (2023-07-12)
 
 ## 3.5.0 (2023-07-08)
