@@ -3,8 +3,8 @@
 set -euo pipefail
 
 # configure Git user and e-mail for the release commit
-git config user.name "supercharge-bot"
-git config user.email balazs.kovacs+bot@supercharge.io
+git config user.name "zenobe-bot"
+git config user.email platformengineering@zenobe.com
 
 # generate changelog and new version number then create a release commit
 npm run release
@@ -19,7 +19,7 @@ mkdir -p ~/.ssh/
 ssh-keyscan github.com >> ~/.ssh/known_hosts
 
 # push the release commit and the new tag to the upstream
-git push --follow-tags git@github.com:team-supercharge/nest-amqp.git master
+git push --follow-tags git@github.com:zenobeenergy/nest-amqp.git master
 
 # delete all manually added SSH keys
 ssh-add -D
@@ -42,7 +42,7 @@ cp package.json README.md LICENSE dist/
 cd dist
 
 # add auth token
-echo "//registry.npmjs.org/:_authToken=${NPM_LOGIN_TOKEN}" > .npmrc
+echo "//npm.pkg.github.com/:_authToken=${NPM_LOGIN_TOKEN}" > .npmrc
 
 # publish the package to NPM
 npm publish
