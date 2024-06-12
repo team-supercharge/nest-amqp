@@ -20,18 +20,6 @@ jobs:
         run: ./node_modules/.bin/commitlint --from $(git merge-base --fork-point master) --verbose
       - name: Lint
         run: npm run lint
-      - name: Lint
-        uses: wearerequired/lint-action@v1.10.0
-        with:
-          continue_on_error: false
-          auto_fix: false
-          neutral_check_on_warning: false
-          eslint: true
-          eslint_args: src/**/*.ts
-          eslint_extensions: ts
-          prettier: true
-          prettier_args: src/**/*.ts
-          prettier_extensions: ts
       - name: Test
         run: |
           npm test
