@@ -1,0 +1,38 @@
+include:
+  - https://gitlab.com/team-supercharge/jarvis/jarvis/raw/external-pipelines/jarvis.yml
+
+stages:
+  # - random
+  - lint
+  - release
+  - build
+
+# random:
+#   stage: random
+#   script:
+#     - export
+#     - echo $CI_PIPELINE_SOURCE
+#     - echo blablablablabla
+#     - git remote show origin
+
+commitlint:
+  extends: .jarvis-commitlint
+  stage: lint
+
+# ---
+
+main-release:
+  extends: .jarvis-main-release
+  stage: release
+
+pre-release:
+  extends: .jarvis-pre-release
+  stage: release
+
+# ---
+
+build:
+  extends: .jarvis-on-release
+  stage: build
+  script:
+    - echo "project being built"
