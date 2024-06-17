@@ -241,6 +241,42 @@ describe('QueueService', () => {
         const messageControl = getInternallyCreatedMessageControl();
         expect(messageControl.accept).toHaveBeenCalled();
       });
+
+      it('should return an existing receiver if already created', async () => {
+        const receiver = {} as Receiver;
+        const source = 'test-queue';
+        queueService['receivers'].set('default:test-queue', receiver);
+
+        const result = await queueService['getReceiver'](source, 1, jest.fn(), 'default');
+
+        expect(result).toBe(receiver);
+        expect(amqpService.createReceiver).not.toHaveBeenCalled();
+      });
+
+      it('should create a new receiver if not already created', async () => {
+        const receiver = {} as Receiver;
+        const source = 'test-queue';
+        const messageHandler = jest.fn();
+
+        (amqpService as any).createReceiver.mockResolvedValue(receiver);
+
+        const result = await queueService['getReceiver'](source, 1, messageHandler, 'default');
+
+        expect(result).toBe(receiver);
+        expect(amqpService.createReceiver).toHaveBeenCalledWith(source, 1, expect.any(Function), 'default');
+      });
+
+      it('should retry creating a receiver on failure', async () => {
+        const source = 'test-queue';
+        const messageHandler = jest.fn();
+
+        (amqpService as any).createReceiver.mockRejectedValueOnce(new Error('Test error')).mockResolvedValueOnce({} as Receiver);
+
+        const result = await queueService['getReceiver'](source, 1, messageHandler, 'default');
+
+        expect(result).toBeDefined();
+        expect(amqpService.createReceiver).toHaveBeenCalledTimes(2);
+      });
     });
   });
 
@@ -346,6 +382,40 @@ describe('QueueService', () => {
       const sender = getSender(queueService, defaultQueue, connection);
 
       expect(sender.send).toHaveBeenCalledWith({ body: 'null', message_annotations: { 'x-opt-delivery-delay': delay * 1000 } });
+    });
+
+    it('should return an existing sender if already created', async () => {
+      const sender = {} as AwaitableSender;
+      const target = 'test-queue';
+      queueService['senders'].set('default:test-queue', sender);
+
+      const result = await queueService['getSender'](target, 'default');
+
+      expect(result).toBe(sender);
+      expect(amqpService.createSender).not.toHaveBeenCalled();
+    });
+
+    it('should create a new sender if not already created', async () => {
+      const sender = {} as AwaitableSender;
+      const target = 'test-queue';
+
+      (amqpService as any).createSender.mockResolvedValue(sender);
+
+      const result = await queueService['getSender'](target, 'default');
+
+      expect(result).toBe(sender);
+      expect(amqpService.createSender).toHaveBeenCalledWith(target, 'default');
+    });
+
+    it('should retry creating a sender on failure', async () => {
+      const target = 'test-queue';
+
+      (amqpService as any).createSender.mockRejectedValueOnce(new Error('Test error')).mockResolvedValueOnce({} as AwaitableSender);
+
+      const result = await queueService['getSender'](target, 'default');
+
+      expect(result).toBeDefined();
+      expect(amqpService.createSender).toHaveBeenCalledTimes(2);
     });
   });
 
