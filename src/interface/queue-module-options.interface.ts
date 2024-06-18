@@ -71,4 +71,17 @@ export interface AMQPConnectionOptions {
    * Connection options directly used by `rhea`
    */
   connectionOptions?: ConnectionOptions;
+
+  /**
+   * Retry configuration for senders and receivers
+   */
+  retryConnection?: {
+    receiver?: RetryConfig;
+    sender?: RetryConfig;
+  };
+}
+
+export interface RetryConfig {
+  retryDelay?: number;
+  maxRetryAttempts?: number;
 }
