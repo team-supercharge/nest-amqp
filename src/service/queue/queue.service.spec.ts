@@ -64,6 +64,19 @@ describe('QueueService', () => {
             createReceiver: jest.fn().mockResolvedValue(jest.fn().mockResolvedValue(new EventContextMock().receiver)),
             createSender: jest.fn().mockResolvedValue(new EventContextMock().sender),
             disconnect: jest.fn().mockResolvedValue(jest.fn()),
+            getConnectionOptions: jest.fn(() => ({
+              connectionUri: 'amqp://test',
+              retryConnection: {
+                receiver: {
+                  retryDelay: 1000,
+                  maxRetryAttempts: 3,
+                },
+                sender: {
+                  retryDelay: 1000,
+                  maxRetryAttempts: 3,
+                },
+              },
+            })),
             getModuleOptions(): QueueModuleOptions {
               return moduleOptions;
             },
@@ -277,6 +290,47 @@ describe('QueueService', () => {
         expect(result).toBeDefined();
         expect(amqpService.createReceiver).toHaveBeenCalledTimes(2);
       });
+
+      it('should not retry creating a receiver if maxRetryAttempts is 1', async () => {
+        (amqpService as any).getConnectionOptions.mockReturnValueOnce({
+          retryConnection: {
+            receiver: {
+              retryDelay: 1000,
+              maxRetryAttempts: 1,
+            },
+          },
+        });
+
+        const source = 'test-queue';
+        const messageHandler = jest.fn();
+
+        (amqpService as any).createReceiver.mockRejectedValue(new Error('Test error'));
+
+        await expect(queueService['getReceiver'](source, 1, messageHandler, 'default')).rejects.toThrow('Test error');
+
+        expect(amqpService.createReceiver).toHaveBeenCalledTimes(1);
+      });
+
+      it('should not retry if both retryDelay and maxRetryAttempts are set to zero', async () => {
+        (amqpService.getConnectionOptions as jest.Mock).mockReturnValueOnce({
+          connectionUri: 'amqp://test',
+          retryConnection: {
+            receiver: {
+              retryDelay: 0,
+              maxRetryAttempts: 0,
+            },
+          },
+        });
+
+        const source = 'test-queue';
+        const messageHandler = jest.fn();
+
+        (amqpService.createReceiver as jest.Mock).mockRejectedValue(new Error('Test error'));
+
+        await expect(queueService['getReceiver'](source, 1, messageHandler, 'default')).rejects.toThrow('Test error');
+
+        expect(amqpService.createReceiver).toHaveBeenCalledTimes(1);
+      });
     });
   });
 
@@ -416,6 +470,47 @@ describe('QueueService', () => {
 
       expect(result).toBeDefined();
       expect(amqpService.createSender).toHaveBeenCalledTimes(2);
+    });
+
+    it('should retry creating a sender with custom retry configuration', async () => {
+      (amqpService.getConnectionOptions as jest.Mock).mockReturnValueOnce({
+        connectionUri: 'amqp://test',
+        retryConnection: {
+          sender: {
+            retryDelay: 500,
+            maxRetryAttempts: 2,
+          },
+        },
+      });
+
+      const target = 'test-queue';
+
+      (amqpService.createSender as jest.Mock).mockRejectedValueOnce(new Error('Test error')).mockResolvedValueOnce({} as AwaitableSender);
+
+      const result = await queueService['getSender'](target, 'default');
+
+      expect(result).toBeDefined();
+      expect(amqpService.createSender).toHaveBeenCalledTimes(2);
+    });
+
+    it('should not retry creating a sender if maxRetryAttempts is 1', async () => {
+      (amqpService.getConnectionOptions as jest.Mock).mockReturnValueOnce({
+        connectionUri: 'amqp://test',
+        retryConnection: {
+          sender: {
+            retryDelay: 1000,
+            maxRetryAttempts: 1,
+          },
+        },
+      });
+
+      const target = 'test-queue';
+
+      (amqpService.createSender as jest.Mock).mockRejectedValue(new Error('Test error'));
+
+      await expect(queueService['getSender'](target, 'default')).rejects.toThrow('Test error');
+
+      expect(amqpService.createSender).toHaveBeenCalledTimes(1);
     });
   });
 

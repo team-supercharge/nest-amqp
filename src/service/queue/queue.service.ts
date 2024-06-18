@@ -29,7 +29,6 @@ const toString = Object.prototype.toString;
 export class QueueService {
   private readonly receivers: Map<string, Receiver>;
   private readonly senders: Map<string, AwaitableSender>;
-  private readonly reconnectDelay: number = 5000; // 5 seconds
 
   constructor(private readonly amqpService: AMQPService, private readonly objectValidatorService: ObjectValidatorService) {
     // this means only one sender and receiver / app / queue
@@ -332,22 +331,36 @@ export class QueueService {
     connection: string,
   ): Promise<Receiver> {
     const sourceToken = typeof source === 'string' ? source : JSON.stringify(source);
-
     const receiverToken = this.getLinkToken(sourceToken, connection);
 
     if (this.receivers.has(receiverToken)) {
       return this.receivers.get(receiverToken);
     }
 
-    try {
-      const receiver = await this.amqpService.createReceiver(source, credit, messageHandler.bind(this), connection);
-      this.receivers.set(receiverToken, receiver);
-      return receiver;
-    } catch (error) {
-      logger.error(`Error creating receiver: ${error.message}`, error.stack);
-      await sleep(this.reconnectDelay);
-      return this.getReceiver(source, credit, messageHandler, connection);
-    }
+    const connectionOptions = this.amqpService.getConnectionOptions(connection);
+    const retryDelay = connectionOptions.retryConnection?.receiver?.retryDelay ?? 0;
+    const maxRetryAttempts = connectionOptions.retryConnection?.receiver?.maxRetryAttempts ?? 1;
+
+    let attempt = 0;
+
+    do {
+      try {
+        const receiver = await this.amqpService.createReceiver(source, credit, messageHandler.bind(this), connection);
+        this.receivers.set(receiverToken, receiver);
+        return receiver;
+      } catch (error) {
+        logger.error(`Error creating receiver (attempt ${attempt + 1}): ${error.message}`, error.stack);
+
+        attempt = attempt + 1;
+        if (attempt >= maxRetryAttempts) {
+          throw new Error(`Max retry attempts reached for creating receiver: ${error.message}`);
+        }
+
+        if (retryDelay > 0) {
+          await sleep(retryDelay);
+        }
+      }
+    } while (attempt < maxRetryAttempts);
   }
 
   private async getSender(target: string, connection: string): Promise<AwaitableSender> {
@@ -357,15 +370,30 @@ export class QueueService {
       return this.senders.get(senderToken);
     }
 
-    try {
-      const sender = await this.amqpService.createSender(target, connection);
-      this.senders.set(senderToken, sender);
-      return sender;
-    } catch (error) {
-      logger.error(`Error creating sender: ${error.message}`, error.stack);
-      await sleep(this.reconnectDelay);
-      return this.getSender(target, connection);
-    }
+    const connectionOptions = this.amqpService.getConnectionOptions(connection);
+    const retryDelay = connectionOptions.retryConnection?.sender?.retryDelay ?? 0;
+    const maxRetryAttempts = connectionOptions.retryConnection?.sender?.maxRetryAttempts ?? 1;
+
+    let attempt = 0;
+
+    do {
+      try {
+        const sender = await this.amqpService.createSender(target, connection);
+        this.senders.set(senderToken, sender);
+        return sender;
+      } catch (error) {
+        logger.error(`Error creating sender (attempt ${attempt + 1}): ${error.message}`, error.stack);
+
+        attempt++;
+        if (attempt >= maxRetryAttempts) {
+          throw new Error(`Max retry attempts reached for creating sender: ${error.message}`);
+        }
+
+        if (retryDelay > 0) {
+          await sleep(retryDelay);
+        }
+      }
+    } while (attempt < maxRetryAttempts);
   }
 
   private encodeMessage(message: any): string {
