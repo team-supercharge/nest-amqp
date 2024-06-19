@@ -3,6 +3,7 @@ name: Pull request
 on: [pull_request]
 
 permissions:
+  checks: write
   contents: write
 
 jobs:
