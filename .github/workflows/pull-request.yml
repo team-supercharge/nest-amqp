@@ -6,6 +6,8 @@ jobs:
   continuous-integration:
     name: Continuous Integration
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Git checkout
         uses: actions/checkout@v2
