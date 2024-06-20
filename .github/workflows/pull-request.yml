@@ -1,6 +1,6 @@
 name: Pull request
 
-on: [pull_request]
+on: [pull_request, pull_request_target]
 
 permissions:
   checks: write
@@ -26,7 +26,7 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: Lint
-        uses: wearerequired/lint-action@v1.10.0
+        uses: wearerequired/lint-action@v2.3.0
         with:
           continue_on_error: false
           auto_fix: false
