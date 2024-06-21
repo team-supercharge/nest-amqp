@@ -99,7 +99,7 @@ describe('QueueService', () => {
 
     await queueService.listen(defaultQueue, () => void 0, {});
 
-    expect(spy).toBeCalled();
+    expect(spy).toHaveBeenCalled();
     expect(spy.mock.calls[0][0]).toEqual('test');
   });
 
@@ -113,7 +113,7 @@ describe('QueueService', () => {
 
     await queueService.listen(source, () => void 0, {});
 
-    expect(spy).toBeCalled();
+    expect(spy).toHaveBeenCalled();
     expect(spy.mock.calls[0][0]).toEqual(source);
   });
 
@@ -523,7 +523,7 @@ describe('QueueService', () => {
       const receiver = queueService['receivers'].get(queueService['receivers'].keys().next().value);
 
       const result = await queueService.removeListener(defaultQueue);
-      expect(receiver.close).toBeCalled();
+      expect(receiver.close).toHaveBeenCalled();
       expect(result).toBe(true);
       expect(queueService['receivers'].size).toBe(0);
     });
@@ -538,7 +538,7 @@ describe('QueueService', () => {
       expect(queueService['receivers'].size).toBe(1);
 
       const result = await queueService.removeListener(defaultQueue, connection);
-      expect(receiver.close).toBeCalled();
+      expect(receiver.close).toHaveBeenCalled();
       expect(result).toBe(true);
       expect(queueService['receivers'].size).toBe(0);
     });
@@ -554,7 +554,7 @@ describe('QueueService', () => {
       const receiver = queueService['receivers'].get(queueService['receivers'].keys().next().value);
 
       const result = await queueService.removeListener(source);
-      expect(receiver.close).toBeCalled();
+      expect(receiver.close).toHaveBeenCalled();
       expect(result).toBe(true);
       expect(queueService['receivers'].size).toBe(0);
     });
@@ -583,7 +583,7 @@ describe('QueueService', () => {
 
     await queueService.shutdown();
 
-    expect(amqpService.disconnect).toBeCalled();
+    expect(amqpService.disconnect).toHaveBeenCalled();
   });
 
   it('should clear links', async () => {
@@ -687,7 +687,7 @@ describe('QueueService', () => {
     it('should throw error on invalid objects', () => {
       expect(() => {
         queueService['decodeMessage']('{null}');
-      }).toThrowError(SyntaxError);
+      }).toThrow(SyntaxError);
     });
   });
 });

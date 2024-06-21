@@ -22,31 +22,31 @@ describe('Logger', () => {
   it('should log log messages', () => {
     logger.log('message', 'context');
 
-    expect(loggerMock.log).toBeCalled();
+    expect(loggerMock.log).toHaveBeenCalled();
   });
 
   it('should log warn messages', () => {
     logger.warn('message');
 
-    expect(loggerMock.warn).toBeCalled();
+    expect(loggerMock.warn).toHaveBeenCalled();
   });
 
   it('should log error messages', () => {
     logger.error('message');
 
-    expect(loggerMock.error).toBeCalled();
+    expect(loggerMock.error).toHaveBeenCalled();
   });
 
   it('should log debug messages', () => {
     logger.debug('message');
 
-    expect(loggerMock.debug).toBeCalled();
+    expect(loggerMock.debug).toHaveBeenCalled();
   });
 
   it('should log verbose messages', () => {
     logger.verbose('message');
 
-    expect(loggerMock.verbose).toBeCalled();
+    expect(loggerMock.verbose).toHaveBeenCalled();
   });
 
   it('should log without context', () => {

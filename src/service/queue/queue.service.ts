@@ -30,7 +30,10 @@ export class QueueService {
   private readonly receivers: Map<string, Receiver>;
   private readonly senders: Map<string, AwaitableSender>;
 
-  constructor(private readonly amqpService: AMQPService, private readonly objectValidatorService: ObjectValidatorService) {
+  constructor(
+    private readonly amqpService: AMQPService,
+    private readonly objectValidatorService: ObjectValidatorService,
+  ) {
     // this means only one sender and receiver / app / queue
     this.receivers = new Map<string, Receiver>();
     this.senders = new Map<string, AwaitableSender>();
@@ -349,11 +352,11 @@ export class QueueService {
         this.receivers.set(receiverToken, receiver);
         return receiver;
       } catch (error) {
-        logger.error(`Error creating receiver (attempt ${attempt + 1}): ${error.message}`, error.stack);
+        logger.error(`Error creating receiver (attempt ${attempt + 1}): ${(error as Error).message}`, (error as Error).stack);
 
         attempt = attempt + 1;
         if (attempt >= maxRetryAttempts) {
-          throw new Error(`Max retry attempts reached for creating receiver: ${error.message}`);
+          throw new Error(`Max retry attempts reached for creating receiver: ${(error as Error).message}`);
         }
 
         if (retryDelay > 0) {
@@ -382,11 +385,11 @@ export class QueueService {
         this.senders.set(senderToken, sender);
         return sender;
       } catch (error) {
-        logger.error(`Error creating sender (attempt ${attempt + 1}): ${error.message}`, error.stack);
+        logger.error(`Error creating sender (attempt ${attempt + 1}): ${(error as Error).message}`, (error as Error).stack);
 
         attempt++;
         if (attempt >= maxRetryAttempts) {
-          throw new Error(`Max retry attempts reached for creating sender: ${error.message}`);
+          throw new Error(`Max retry attempts reached for creating sender: ${(error as Error).message}`);
         }
 
         if (retryDelay > 0) {

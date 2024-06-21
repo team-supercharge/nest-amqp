@@ -146,7 +146,7 @@ describe('AMQPService', () => {
     });
 
     it('should throw error on unsupported protocol', async () => {
-      await expect(AMQPService.createConnection({ connectionUri: 'stomp://localhost:5672' })).rejects.toThrowError(
+      await expect(AMQPService.createConnection({ connectionUri: 'stomp://localhost:5672' })).rejects.toThrow(
         NestAmqpInvalidConnectionProtocolException,
       );
     });
@@ -212,7 +212,7 @@ describe('AMQPService', () => {
     jest.useFakeTimers();
     connectionCloseEventHandler(eventContext);
     jest.runOnlyPendingTimers();
-    expect(eventContext.connection.open).toBeCalledTimes(0);
+    expect(eventContext.connection.open).toHaveBeenCalledTimes(0);
     jest.clearAllTimers();
   });
 
@@ -278,7 +278,7 @@ describe('AMQPService', () => {
 
     await service.disconnect();
 
-    expect(localConnection.close).toBeCalled();
+    expect(localConnection.close).toHaveBeenCalled();
   });
 
   it('should create a sender', async () => {
@@ -294,7 +294,7 @@ describe('AMQPService', () => {
 
     senderEvents.forEach(event => event.callback(context));
 
-    expect(spy).toBeCalled();
+    expect(spy).toHaveBeenCalled();
 
     spy.mockRestore();
   });
@@ -312,7 +312,7 @@ describe('AMQPService', () => {
 
     receiverEvents.forEach(event => event.callback(context));
 
-    expect(spy).toBeCalled();
+    expect(spy).toHaveBeenCalled();
 
     spy.mockRestore();
   });
@@ -324,7 +324,7 @@ describe('AMQPService', () => {
 
     receiverEvents.forEach(event => event.callback(context));
 
-    expect(context.receiver.addCredit).toBeCalledWith(addCredits);
+    expect(context.receiver.addCredit).toHaveBeenCalledWith(addCredits);
   });
 
   it('should execute onMessage() callback', async () => {
@@ -333,7 +333,7 @@ describe('AMQPService', () => {
 
     (receiver.linkOptions as any).onMessage();
 
-    expect(onMessage).toBeCalled();
+    expect(onMessage).toHaveBeenCalled();
   });
 
   it('should execute onError() callback', async () => {

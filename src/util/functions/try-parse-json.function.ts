@@ -16,6 +16,7 @@ export function tryParseJSON<T = any>(jsonString: string): T | undefined {
     if (o && typeof o === 'object') {
       return o;
     }
+    /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   } catch (e) {
     return undefined;
   }
