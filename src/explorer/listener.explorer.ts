@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Injectable as InjectableInterface } from '@nestjs/common/interfaces';
 import { MetadataScanner, ModulesContainer } from '@nestjs/core';
-import { InstanceWrapper } from '@nestjs/core/injector/instance-wrapper';
+import { isDefined } from 'class-validator';
 
 import { QUEUE_LISTEN_METADATA_KEY } from '../constant';
 import { ListenerMetadata } from '../domain';
@@ -14,7 +13,10 @@ import { ListenerMetadata } from '../domain';
  */
 @Injectable()
 export class ListenerExplorer {
-  constructor(private readonly modulesContainer: ModulesContainer, private readonly metadataScanner: MetadataScanner) {}
+  constructor(
+    private readonly modulesContainer: ModulesContainer,
+    private readonly metadataScanner: MetadataScanner,
+  ) {}
 
   /**
    * Traverse all providers and collect listener options which has method or
@@ -28,7 +30,8 @@ export class ListenerExplorer {
     const providersMap = modules.filter(({ providers }) => providers.size > 0).map(({ providers }) => providers);
 
     // transform the instance wrappers into a nice format
-    const instanceWrappers: Array<InstanceWrapper<InjectableInterface>> = [];
+    // InstanceWrapper.instance from @nestjs/core/injector/instance-wrapper
+    const instanceWrappers: Array<{ instance: unknown }> = [];
     providersMap.forEach(map => {
       instanceWrappers.push(...map.values());
     });
@@ -39,9 +42,10 @@ export class ListenerExplorer {
       .map(({ instance }) => {
         const instancePrototype = Object.getPrototypeOf(instance);
 
-        return this.metadataScanner.scanFromPrototype(instance, instancePrototype, method =>
-          this.exploreMethodMetadata<T>(instancePrototype, method),
-        );
+        return this.metadataScanner
+          .getAllMethodNames(instancePrototype)
+          .map(method => this.exploreMethodMetadata<T>(instancePrototype, method))
+          .filter(isDefined);
       })
       .reduce((prev, curr) => {
         return prev.concat(curr);

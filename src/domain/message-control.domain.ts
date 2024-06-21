@@ -134,7 +134,7 @@ export class MessageControl {
     try {
       return typeof reason !== 'string' ? JSON.stringify(reason) : reason;
     } catch (error) {
-      logger.error(`could not parse error reason: ${reason}`);
+      logger.error(`could not parse error reason: ${(error as Error)?.message ?? error}`);
 
       return 'unknown';
     }

@@ -129,8 +129,10 @@ describe('ObjectValidator', () => {
   });
 
   describe('found issues', () => {
-    it('should pass receiving a number', async () => {
-      await expect(service.validate(Number, 1)).resolves.toEqual(1);
+    describe('with `forbidUnknownValues` disabled in class-validator', () => {
+      it('should pass receiving a number', async () => {
+        await expect(service.validate(Number, 1, { validatorOptions: { forbidUnknownValues: false } })).resolves.toEqual(1);
+      });
     });
   });
 });
