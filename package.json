@@ -1,6 +1,6 @@
 {
   "name": "@team-supercharge/nest-amqp",
-  "version": "3.6.5",
+  "version": "3.6.2",
   "description": "AMQP 1.0 module for Nest framework",
   "author": "Supercharge",
   "license": "MIT",

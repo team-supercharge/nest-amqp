@@ -4,12 +4,12 @@ import { AwaitableSender, Delivery, EventContext, Message, Receiver, Source } fr
 
 import {
   extendObject,
+  getLoggerContext,
+  Logger,
   sleep,
   tryParseJSON,
-  ValidationNullObjectException,
-  Logger,
-  getLoggerContext,
   ValidationException,
+  ValidationNullObjectException,
 } from '../../util';
 import { MessageControl } from '../../domain';
 import { SendState } from '../../enum';
@@ -331,31 +331,69 @@ export class QueueService {
     connection: string,
   ): Promise<Receiver> {
     const sourceToken = typeof source === 'string' ? source : JSON.stringify(source);
-
     const receiverToken = this.getLinkToken(sourceToken, connection);
 
-    if (!this.receivers.has(receiverToken)) {
-      const receiver = await this.amqpService.createReceiver(source, credit, messageHandler.bind(this), connection);
-      this.receivers.set(receiverToken, receiver);
+    if (this.receivers.has(receiverToken)) {
+      return this.receivers.get(receiverToken);
     }
 
-    return this.receivers.get(receiverToken);
+    const connectionOptions = this.amqpService.getConnectionOptions(connection);
+    const retryDelay = connectionOptions.retryConnection?.receiver?.retryDelay ?? 0;
+    const maxRetryAttempts = connectionOptions.retryConnection?.receiver?.maxRetryAttempts ?? 1;
+
+    let attempt = 0;
+
+    do {
+      try {
+        const receiver = await this.amqpService.createReceiver(source, credit, messageHandler.bind(this), connection);
+        this.receivers.set(receiverToken, receiver);
+        return receiver;
+      } catch (error) {
+        logger.error(`Error creating receiver (attempt ${attempt + 1}): ${error.message}`, error.stack);
+
+        attempt = attempt + 1;
+        if (attempt >= maxRetryAttempts) {
+          throw new Error(`Max retry attempts reached for creating receiver: ${error.message}`);
+        }
+
+        if (retryDelay > 0) {
+          await sleep(retryDelay);
+        }
+      }
+    } while (attempt < maxRetryAttempts);
   }
 
   private async getSender(target: string, connection: string): Promise<AwaitableSender> {
-    let sender;
-
     const senderToken = this.getLinkToken(target, connection);
 
     if (this.senders.has(senderToken)) {
-      sender = this.senders.get(senderToken);
-    } else {
-      sender = await this.amqpService.createSender(target, connection);
-
-      this.senders.set(senderToken, sender);
+      return this.senders.get(senderToken);
     }
 
-    return sender;
+    const connectionOptions = this.amqpService.getConnectionOptions(connection);
+    const retryDelay = connectionOptions.retryConnection?.sender?.retryDelay ?? 0;
+    const maxRetryAttempts = connectionOptions.retryConnection?.sender?.maxRetryAttempts ?? 1;
+
+    let attempt = 0;
+
+    do {
+      try {
+        const sender = await this.amqpService.createSender(target, connection);
+        this.senders.set(senderToken, sender);
+        return sender;
+      } catch (error) {
+        logger.error(`Error creating sender (attempt ${attempt + 1}): ${error.message}`, error.stack);
+
+        attempt++;
+        if (attempt >= maxRetryAttempts) {
+          throw new Error(`Max retry attempts reached for creating sender: ${error.message}`);
+        }
+
+        if (retryDelay > 0) {
+          await sleep(retryDelay);
+        }
+      }
+    } while (attempt < maxRetryAttempts);
   }
 
   private encodeMessage(message: any): string {
