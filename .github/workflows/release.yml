@@ -6,6 +6,7 @@ on:
     branches:
       - master
 
+
 jobs:
   release-and-publish:
     name: Release and publish to NPM registry
@@ -26,4 +27,5 @@ jobs:
         env:
           NPM_LOGIN_TOKEN: ${{ secrets.NPM_LOGIN_TOKEN }}
           SUPERCHARGE_BOT_DEPLOY_KEY: ${{ secrets.SUPERCHARGE_BOT_DEPLOY_KEY }}
+          ACTIONS_RUNNER_DEBUG: true
         run: ./release.sh
