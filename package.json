@@ -1,8 +1,8 @@
 {
-  "name": "@team-supercharge/nest-amqp",
+  "name": "@ZenobeEnergy/nest-amqp",
   "version": "3.6.2",
   "description": "AMQP 1.0 module for Nest framework",
-  "author": "Supercharge",
+  "author": "ZenobeEnergy",
   "license": "MIT",
   "keywords": [
     "amqp",
@@ -11,7 +11,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/team-supercharge/nest-amqp"
+    "url": "https://github.com/ZenobeEnergy/nest-amqp"
   },
   "publishConfig": {
     "access": "public"
