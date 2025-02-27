@@ -37,7 +37,7 @@
     "check": "npm run lint && npm run build && npm run test"
   },
   "dependencies": {
-    "rhea-promise": "2.1.0"
+    "rhea-promise": "3.0.3"
   },
   "devDependencies": {
     "@commitlint/cli": "13.1.0",
