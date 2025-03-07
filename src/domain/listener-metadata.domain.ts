@@ -1,7 +1,6 @@
 import { Source } from 'rhea-promise';
-import { ListenOptions } from '../interface';
 
-/* eslint-disable @typescript-eslint/ban-types */
+import { ListenOptions } from '../interface';
 
 /**
  * Metadata added by the `@Listener` decorator
@@ -10,7 +9,7 @@ export class ListenerMetadata<T> {
   /**
    * The method that should be executed once the message is transformed (and validated if needed)
    */
-  public readonly callback: Function;
+  public readonly callback: (...params: unknown[]) => void | Promise<void>;
 
   /**
    * Name of the method
