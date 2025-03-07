@@ -4,13 +4,7 @@ import { AMQP_DEFAULT_CONNECTION_TOKEN, QUEUE_MODULE_OPTIONS } from './constant'
 
 jest.mock('rhea-promise');
 
-import {
-  AMQPConnectionOptions,
-  NamedAMQPConnectionOptions,
-  QueueModuleAsyncOptions,
-  QueueModuleOptions,
-  QueueModuleOptionsFactory,
-} from './interface';
+import { QueueModuleAsyncOptions, QueueModuleOptions, QueueModuleOptionsFactory } from './interface';
 import { QueueModule } from './queue.module';
 import { AMQPService, QueueService } from './service';
 import { AMQConnectionOptionsStorage, AMQConnectionStorage, getAMQConnectionOptionsToken } from './util';
@@ -135,8 +129,8 @@ describe('QueueModule', () => {
         imports: [
           QueueModule.forRoot(
             [
-              { connectionUri: connectionUri1, name: connection1, connectionOptions: {} } as NamedAMQPConnectionOptions,
-              { connectionUri: connectionUri2, name: connection2, connectionOptions: {} } as NamedAMQPConnectionOptions,
+              { connectionUri: connectionUri1, name: connection1, connectionOptions: { transport: 'tls' } },
+              { connectionUri: connectionUri2, name: connection2, connectionOptions: { transport: 'tls' } },
             ],
             {},
           ),
@@ -144,8 +138,14 @@ describe('QueueModule', () => {
       }).compile();
 
       const amqpService = module.get<AMQPService>(AMQPService);
-      expect(amqpService.getConnectionOptions(connection1)).toEqual({ connectionUri: connectionUri1, connectionOptions: {} });
-      expect(amqpService.getConnectionOptions(connection2)).toEqual({ connectionUri: connectionUri2, connectionOptions: {} });
+      expect(amqpService.getConnectionOptions(connection1)).toEqual({
+        connectionUri: connectionUri1,
+        connectionOptions: { transport: 'tls' },
+      });
+      expect(amqpService.getConnectionOptions(connection2)).toEqual({
+        connectionUri: connectionUri2,
+        connectionOptions: { transport: 'tls' },
+      });
     });
 
     it('should work with multiple connection options supplied, one named default', async () => {
@@ -158,8 +158,8 @@ describe('QueueModule', () => {
         imports: [
           QueueModule.forRoot(
             [
-              { connectionUri: connectionUri1, connectionOptions: {} } as AMQPConnectionOptions,
-              { connectionUri: connectionUri2, name: connection2, connectionOptions: {} } as NamedAMQPConnectionOptions,
+              { connectionUri: connectionUri1, connectionOptions: { transport: 'tls' } },
+              { connectionUri: connectionUri2, name: connection2, connectionOptions: { transport: 'tls' } },
             ],
             {},
           ),
@@ -167,12 +167,15 @@ describe('QueueModule', () => {
       }).compile();
 
       const amqpService = module.get<AMQPService>(AMQPService);
-      expect(amqpService.getConnectionOptions()).toEqual({ connectionUri: connectionUri1, connectionOptions: {} });
+      expect(amqpService.getConnectionOptions()).toEqual({ connectionUri: connectionUri1, connectionOptions: { transport: 'tls' } });
       expect(amqpService.getConnectionOptions(AMQP_DEFAULT_CONNECTION_TOKEN)).toEqual({
         connectionUri: connectionUri1,
-        connectionOptions: {},
+        connectionOptions: { transport: 'tls' },
       });
-      expect(amqpService.getConnectionOptions(connection2)).toEqual({ connectionUri: connectionUri2, connectionOptions: {} });
+      expect(amqpService.getConnectionOptions(connection2)).toEqual({
+        connectionUri: connectionUri2,
+        connectionOptions: { transport: 'tls' },
+      });
     });
   });
 
