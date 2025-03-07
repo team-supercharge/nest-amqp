@@ -83,7 +83,7 @@ export class AMQPService {
       host: hostname,
       port: Number.parseInt(port, 10),
       ...rheaConnectionOptions,
-    });
+    } as ConnectionOptions);
 
     connection.on(ConnectionEvents.connectionOpen, (_: EventContext) => {
       logger.log('connection opened');
