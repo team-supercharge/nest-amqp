@@ -4,7 +4,13 @@ import { AMQP_DEFAULT_CONNECTION_TOKEN, QUEUE_MODULE_OPTIONS } from './constant'
 
 jest.mock('rhea-promise');
 
-import { QueueModuleAsyncOptions, QueueModuleOptions, QueueModuleOptionsFactory } from './interface';
+import {
+  AMQPConnectionOptions,
+  NamedAMQPConnectionOptions,
+  QueueModuleAsyncOptions,
+  QueueModuleOptions,
+  QueueModuleOptionsFactory,
+} from './interface';
 import { QueueModule } from './queue.module';
 import { AMQPService, QueueService } from './service';
 import { AMQConnectionOptionsStorage, AMQConnectionStorage, getAMQConnectionOptionsToken } from './util';
@@ -129,8 +135,8 @@ describe('QueueModule', () => {
         imports: [
           QueueModule.forRoot(
             [
-              { connectionUri: connectionUri1, name: connection1, connectionOptions: {} },
-              { connectionUri: connectionUri2, name: connection2, connectionOptions: {} },
+              { connectionUri: connectionUri1, name: connection1, connectionOptions: {} } as NamedAMQPConnectionOptions,
+              { connectionUri: connectionUri2, name: connection2, connectionOptions: {} } as NamedAMQPConnectionOptions,
             ],
             {},
           ),
@@ -152,8 +158,8 @@ describe('QueueModule', () => {
         imports: [
           QueueModule.forRoot(
             [
-              { connectionUri: connectionUri1, connectionOptions: {} },
-              { connectionUri: connectionUri2, name: connection2, connectionOptions: {} },
+              { connectionUri: connectionUri1, connectionOptions: {} } as AMQPConnectionOptions,
+              { connectionUri: connectionUri2, name: connection2, connectionOptions: {} } as NamedAMQPConnectionOptions,
             ],
             {},
           ),
