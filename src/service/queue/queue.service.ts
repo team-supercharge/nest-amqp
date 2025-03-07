@@ -204,7 +204,7 @@ export class QueueService {
       // when using CRON syntax, simply add it to the message
       // NOD: not possible to use seconds
       messageToSend = {
-        body: this.encodeMessage(message),
+        body: this.encodeMessage(message, sendOptions),
         message_annotations: {
           'x-opt-delivery-cron': schedule.cron,
         },
@@ -215,7 +215,7 @@ export class QueueService {
 
       // compose schedule
       messageToSend = {
-        body: this.encodeMessage(message),
+        body: this.encodeMessage(message, sendOptions),
         message_annotations: {
           'x-opt-delivery-cron': '* * * * *', // trigger every minute
           'x-opt-delivery-delay': 0,
@@ -234,14 +234,14 @@ export class QueueService {
 
       // compose schedule
       messageToSend = {
-        body: this.encodeMessage(message),
+        body: this.encodeMessage(message, sendOptions),
         message_annotations: {
           'x-opt-delivery-delay': milliseconds,
         },
       };
     } else {
       messageToSend = {
-        body: this.encodeMessage(message),
+        body: this.encodeMessage(message, sendOptions),
       };
     }
 
@@ -396,7 +396,13 @@ export class QueueService {
     } while (attempt < maxRetryAttempts);
   }
 
-  private encodeMessage(message: any): string {
+  private encodeMessage(message: any, sendOptions?: SendOptions | string): string {
+    const isMessageObject = typeof message === 'object';
+    const shouldByPassEncode = sendOptions && typeof sendOptions === 'object' && sendOptions.byPassStringifyEncode;
+    if (isMessageObject && shouldByPassEncode) {
+      return message;
+    }
+
     return JSON.stringify(message);
   }
 

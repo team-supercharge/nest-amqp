@@ -94,4 +94,11 @@ export interface SendOptions extends Omit<Message, 'body'> {
    * Scheduling options
    */
   schedule?: SendSchedule;
+
+  /**
+   * Azure SDK was not able to infer contentType: 'application/json' after using JSON.stringify
+   *
+   * NOTE: Optional parameter to bypass stringify if message is object
+   */
+  byPassStringifyEncode?: boolean;
 }
