@@ -13,13 +13,12 @@ export function extendObject(target: Record<string, any>, source: Record<string,
 
   for (const key of sourceKeys) {
     if (toString.call(source[key]) === '[object Object]') {
-      if (!target[key]) {
-        target[key] = {};
-      }
-      target[key] = extendObject(target[key], source[key]);
-    } else {
-      target[key] = source[key];
+      target[key] = extendObject(target[key] ?? {}, source[key]);
+
+      continue;
     }
+
+    target[key] = source[key];
   }
 
   return target;

@@ -133,8 +133,9 @@ export class MessageControl {
   private getRejectReason(reason: string | Record<string, any>): string {
     try {
       return typeof reason !== 'string' ? JSON.stringify(reason) : reason;
-    } catch (error) {
-      logger.error(`could not parse error reason: ${(error as Error)?.message ?? error}`);
+    } catch (err) {
+      const error = err as Error;
+      logger.error(`could not parse error reason: ${reason}, message: ${error.message}`, error.stack);
 
       return 'unknown';
     }
