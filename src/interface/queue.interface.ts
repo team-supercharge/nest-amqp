@@ -15,14 +15,6 @@ export interface ListenOptions<T> extends ObjectValidationOptions {
   type?: new (...params: any[]) => T;
 
   /**
-   * @deprecated Will be removed in the next major release, use `skipValidation` instead
-   *
-   * If it is true then the message body will not be validated.
-   * @default false
-   */
-  noValidate?: boolean;
-
-  /**
    *
    * If it is true then the message body will not be validated.
    * @default false
