@@ -17,15 +17,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
       - name: Install NPM dependencies
         run: npm ci
       - name: Commit lint
         run: ./node_modules/.bin/commitlint --from $(git merge-base --fork-point master) --verbose
-      - name: Lint
+      - name: Eslint
         run: npm run lint
-      - name: Lint
+      - name: Lint GH Action
         uses: wearerequired/lint-action@v2.3.0
         with:
           continue_on_error: false

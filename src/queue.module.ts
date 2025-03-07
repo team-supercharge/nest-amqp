@@ -1,7 +1,6 @@
 import { DynamicModule, Inject, Module, OnModuleDestroy, OnModuleInit, Provider, Type } from '@nestjs/common';
 import { Connection } from 'rhea-promise';
 import { MetadataScanner, ModuleRef } from '@nestjs/core';
-import { UnknownElementException } from '@nestjs/core/errors/exceptions/unknown-element.exception';
 import { isDefined } from 'class-validator';
 
 import {
@@ -253,11 +252,9 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
       try {
         target = this.moduleRef.get(listener.target as any, { strict: false });
       } catch (err) {
-        if (err instanceof UnknownElementException) {
-          target = this.moduleRef.get(listener.targetName, { strict: false });
-        } else {
-          throw err;
-        }
+        const error = err as Error;
+        logger.error(`Failed to fetch instance for listener ${listener.targetName}: ${error.message}`, error.stack);
+        throw err;
       }
 
       await this.queueService.listen(listener.source, listener.callback.bind(target), listener.options, listener.connection);

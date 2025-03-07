@@ -349,11 +349,11 @@ export class QueueService {
         this.receivers.set(receiverToken, receiver);
         return receiver;
       } catch (error) {
-        logger.error(`Error creating receiver (attempt ${attempt + 1}): ${error.message}`, error.stack);
+        logger.error(`Error creating receiver (attempt ${attempt + 1}): ${(error as Error).message}`, (error as Error).stack);
 
         attempt = attempt + 1;
         if (attempt >= maxRetryAttempts) {
-          throw new Error(`Max retry attempts reached for creating receiver: ${error.message}`);
+          throw new Error(`Max retry attempts reached for creating receiver: ${(error as Error).message}`);
         }
 
         if (retryDelay > 0) {
@@ -382,11 +382,11 @@ export class QueueService {
         this.senders.set(senderToken, sender);
         return sender;
       } catch (error) {
-        logger.error(`Error creating sender (attempt ${attempt + 1}): ${error.message}`, error.stack);
+        logger.error(`Error creating sender (attempt ${attempt + 1}): ${(error as Error).message}`, (error as Error).stack);
 
         attempt++;
         if (attempt >= maxRetryAttempts) {
-          throw new Error(`Max retry attempts reached for creating sender: ${error.message}`);
+          throw new Error(`Max retry attempts reached for creating sender: ${(error as Error).message}`);
         }
 
         if (retryDelay > 0) {
