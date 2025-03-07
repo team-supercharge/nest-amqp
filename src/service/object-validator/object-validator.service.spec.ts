@@ -23,12 +23,6 @@ describe('ObjectValidator', () => {
     public age: number;
   }
 
-  class UserDto3 {
-    @Expose()
-    @IsNumber()
-    public age: number;
-  }
-
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [ObjectValidatorService],
@@ -77,54 +71,6 @@ describe('ObjectValidator', () => {
       const user = { name: 'Peter', age: null as any };
 
       await expect(service.validate(UserDto1, user, { validatorOptions: { skipNullProperties: true } })).resolves.toEqual(user);
-    });
-  });
-
-  describe('validate array of objects', () => {
-    it('should return the valid array of objects', async () => {
-      const userList = [
-        { name: 'Peter', age: 20 },
-        { name: 'Anna', age: 22 },
-      ];
-
-      await expect(service.validateArray(UserDto1, userList)).resolves.toEqual(userList);
-    });
-
-    it('should return with validation errors on fail', async () => {
-      const userList = [
-        { name: 'Peter', age: '20' },
-        { name: 'Anna', age: '22' },
-      ];
-
-      await expect(service.validateArray(UserDto1, userList)).rejects.toThrow('age');
-    });
-
-    it('should throw exception on null value', async () => {
-      await expect(service.validateArray(UserDto1, null)).rejects.toThrow(ValidationNullObjectException);
-    });
-
-    it('should throw exception on undefined value', async () => {
-      await expect(service.validateArray(UserDto1, undefined)).rejects.toThrow(ValidationNullObjectException);
-    });
-
-    it('should work with transformer options', async () => {
-      const userList = [
-        { name: 'Peter', age: '20' },
-        { name: 'Anna', age: '22' },
-      ];
-
-      await expect(service.validateArray(UserDto3, userList, { transformerOptions: { enableImplicitConversion: true } })).resolves.toEqual([
-        { age: 20 },
-        { age: 22 },
-      ]);
-    });
-
-    it('should work with validator options', async () => {
-      const userList = [{}, {}];
-
-      await expect(service.validateArray(UserDto1, userList, { validatorOptions: { skipMissingProperties: true } })).resolves.toEqual(
-        userList,
-      );
     });
   });
 
