@@ -3,10 +3,10 @@ name: Build status
 on:
   push:
     branches:
-      - master
+      - main
 jobs:
   build-status:
-    name: Build status on master branch
+    name: Build status on main branch
     runs-on: ubuntu-latest
     steps:
       - name: Git checkout
