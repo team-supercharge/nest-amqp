@@ -1,9 +1,11 @@
 name: Build status
 
 on:
-  push:
-    branches:
-      - main
+  # push:
+  #   branches:
+  #     - main
+  workflow_dispatch:
+
 jobs:
   build-status:
     name: Build status on main branch
