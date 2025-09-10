@@ -21,7 +21,10 @@ export class MessageControl {
    * @constructor
    * @param {EventContext} context Event context received from Rhea related to the message
    */
-  constructor(private readonly context: EventContext) {}
+  constructor(private readonly context: EventContext) {
+    console.log(`creating new message control for: ${context.receiver.address}`);
+    console.log(this.handled);
+  }
 
   /**
    * Use `accept` when message has been handled normally.
@@ -31,6 +34,7 @@ export class MessageControl {
    * in the callback, message will be automatically accepted.
    */
   public accept(): void {
+    console.log(`accept: ${this.handled}`);
     if (this.handled) {
       logger.log('message already handled');
 
@@ -55,6 +59,8 @@ export class MessageControl {
    * @param {string|object} reason reason to reject message
    */
   public reject(reason: string | Record<string, any>): void {
+    console.log(`reject: ${this.handled}`);
+
     if (this.handled) {
       logger.log('message already handled');
 
@@ -105,7 +111,7 @@ export class MessageControl {
    *
    * @return {boolean} The message has already been processed or not
    */
-  public isHandled(): boolean {
+  public get isHandled(): boolean {
     return this.handled;
   }
 

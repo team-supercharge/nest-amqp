@@ -33,7 +33,7 @@ export class ObjectValidatorService {
    */
   public async validate<T>(type: new (...params: unknown[]) => T, plain: unknown, options?: ObjectValidationOptions): Promise<T> {
     if (!isDefined(plain)) {
-      throw new ValidationNullObjectException(type.name);
+      return Promise.reject(new ValidationNullObjectException(type.name));
     }
 
     const transformerOptions = options?.transformerOptions ?? {};
@@ -44,7 +44,7 @@ export class ObjectValidatorService {
     const errors = await validate(object as any, validatorOptions);
 
     if (errors.length !== 0) {
-      throw new ValidationException(errors);
+      return Promise.reject(new ValidationException(errors));
     }
 
     return object;

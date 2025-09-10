@@ -1,19 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { isDefined } from 'class-validator';
 import { AwaitableSender, Delivery, EventContext, Message, Receiver, Source } from 'rhea-promise';
+import type { Except } from 'type-fest';
 
-import {
-  extendObject,
-  getLoggerContext,
-  Logger,
-  sleep,
-  tryParseJSON,
-  ValidationException,
-  ValidationNullObjectException,
-} from '../../util';
+import { extendObject, getLoggerContext, Logger, sleep, ValidationException, ValidationNullObjectException } from '../../util';
 import { MessageControl } from '../../domain';
 import { SendState } from '../../enum';
-import { ListenOptions, SendOptions } from '../../interface';
+import { ListenOptions, SendOptions, SendSchedule } from '../../interface';
 import { AMQP_DEFAULT_CONNECTION_TOKEN } from '../../constant';
 
 import { AMQPService } from '../amqp/amqp.service';
@@ -46,7 +39,7 @@ export class QueueService {
    * created for the given queue then a new receiver won't be created.
    *
    * @param {string} source Name or Source object of the queue.
-   * @param {function(body: T, control: MessageControl, metadata: Omit<Message, 'body'>) => Promise<void>} callback Function what will invoked when message arrives.
+   * @param {(body: T, control: MessageControl, metadata: Except<Message, 'body'>) => Promise<void>} callback Function what will invoked when message arrives.
    * @param {ListenOptions<T>} options Options for message processing.
    * @param {string} connection Name of the connection
    *
@@ -54,7 +47,7 @@ export class QueueService {
    */
   public async listen<T>(
     source: string | Source,
-    callback: (body: T, control: MessageControl, metadata: Omit<Message, 'body'>) => Promise<void>,
+    callback: (body: T, control: MessageControl, metadata: Except<Message, 'body'>) => Promise<void>,
     options: ListenOptions<T>,
     connection: string = AMQP_DEFAULT_CONNECTION_TOKEN,
   ): Promise<void> {
@@ -62,117 +55,79 @@ export class QueueService {
 
     // get receiver
     const initialCredit = options?.parallelMessageProcessing ?? PARALLEL_MESSAGE_COUNT;
-    const transformerOptions = options?.transformerOptions ?? {};
-    const validatorOptions = options?.validatorOptions ?? null;
-
-    const messageValidator = async (context: EventContext, control: MessageControl) => {
-      logger.verbose(`incoming message on queue '${sourceToken}'`);
-
-      const messageBody: any = context.message.body;
-      const metadata: Omit<Message, 'body'> = extendObject(context.message, { body: undefined });
-
-      let body: T;
-
-      // if not expecting parsed data
-      if (!options || !isDefined(options.type)) {
-        body = null;
-      } else {
-        // if expecting parsed data
-        let parsed: any;
-
-        // parse body received as string from queue
-        try {
-          parsed = this.decodeMessage(messageBody);
-        } catch (error) {
-          logger.error('cant decode message', messageBody);
-
-          // can't decode, need to reject message
-          control.reject((error as Error).message);
-
-          return;
-        }
-
-        try {
-          // HACK - change for better solution, when available
-          // Explanation: Class-transformer supports differentiating on type and using different classes, but currently the discriminator can only be
-          // inside the nested object. This extra property will be deleted during transformation
-          // istanbul ignore next
-          if (isDefined(parsed?.type) && isDefined(parsed?.payload)) {
-            parsed.payload.type = parsed.type;
-          }
-
-          body =
-            options && (options.noValidate || options.skipValidation)
-              ? parsed
-              : await this.objectValidatorService.validate(options.type, parsed, { transformerOptions, validatorOptions });
-        } catch (error) {
-          if (error instanceof ValidationNullObjectException) {
-            logger.error(`null received as body on ${context.receiver.address}`);
-
-            const acceptValidationNullObjectException = options.acceptValidationNullObjectException ?? false;
-            if (acceptValidationNullObjectException === true) {
-              control.accept();
-            } else {
-              control.reject(error.message);
-            }
-
-            return;
-          }
-
-          // istanbul ignore else
-          if (error instanceof ValidationException) {
-            logger.error(`validation error ${sourceToken} (payload: ${JSON.stringify(parsed)}): ${error.message}`, error.stack);
-          } else {
-            const parsedError = tryParseJSON((error as Error).message) || (error as Error).message;
-
-            logger.error(
-              `unexpected error happened during validation process on '${sourceToken}' (payload: ${JSON.stringify(
-                parsed,
-              )}): ${parsedError.toString()}`,
-              (error as Error).stack,
-            );
-          }
-
-          // can't validate, need to reject message
-          control.reject((error as Error).message);
-
-          return;
-        }
-      }
-
-      try {
-        // run callback function
-        const startTime = new Date();
-        await callback(body, control, metadata);
-        const durationInMs = new Date().getTime() - startTime.getTime();
-        logger.log(`handling '${sourceToken}' finished in ${durationInMs} (ms)`);
-
-        // handle auto-accept when message is otherwise not handled
-        // istanbul ignore next
-        if (!control.isHandled()) {
-          control.accept();
-        }
-      } catch (error) {
-        logger.error(`error in callback on queue '${sourceToken}': ${(error as Error).message}`, (error as Error).stack);
-
-        // can't process callback, need to reject message
-        control.reject((error as Error).message);
-      }
-
-      logger.verbose(`handled message on queue '${sourceToken}'`);
-    };
 
     const messageHandler = async (context: EventContext) => {
       const control: MessageControl = new MessageControl(context);
 
-      messageValidator(context, control).catch(error => {
-        logger.error(`unexpected error happened during message validation on '${context.receiver.address}': ${error.message}`, error);
-        control.reject(error.message);
-      });
+      logger.verbose(`incoming message on queue '${sourceToken}'`);
+
+      const { body: messageBody, ...metadata } = context.message ?? {};
+
+      const body = await this.getMessageBody(messageBody, options, control, sourceToken);
+
+      // run callback function
+      const startTime = new Date();
+      await callback(body, control, metadata)
+        .then(() => {
+          // handle auto-accept when message is otherwise not handled
+          // istanbul ignore next
+          console.log(`handled: ${control.isHandled}`);
+          if (!control.isHandled) control.accept();
+        })
+        .catch((error: Error) => {
+          logger.error(`error in callback on queue '${sourceToken}': ${error.message}`, error.stack);
+
+          // can't process callback, need to reject message
+          control.reject(error.message);
+        });
+
+      const durationInMs = new Date().getTime() - startTime.getTime();
+      logger.log(`handling '${sourceToken}' finished in ${durationInMs} (ms)`);
+
+      logger.verbose(`handled message on queue '${sourceToken}'`);
     };
+
     await this.getReceiver(source, initialCredit, messageHandler, connection);
   }
 
+  /**
+   * Creates a sender which will send messages to the given queue. If a sender
+   * is already created for the queue then a new sender won't be created.
+   *
+   * @param {string} [target] Name of the queue.
+   * @param {T} [message] Message body.
+   *
+   * @return {Promise<SendState>} Result of sending the message.
+   *
+   * @public
+   */
+  public async send<T>(target: string, message: T): Promise<SendState>;
+  /**
+   * Creates a sender which will send messages to the given queue. If a sender
+   * is already created for the queue then a new sender won't be created.
+   *
+   * @param {string} [target] Name of the queue.
+   * @param {T} [message] Message body.
+   * @param {SendOptions} sendOptions Options for message sending.
+   *
+   * @return {Promise<SendState>} Result of sending the message.
+   *
+   * @public
+   */
+  public async send<T>(target: string, message: T, sendOptions: SendOptions): Promise<SendState>;
+  /**
+   * Creates a sender which will send messages to the given queue. If a sender
+   * is already created for the queue then a new sender won't be created.
+   *
+   * @param {string} target Name of the queue.
+   * @param {T} message Message body.
+   * @param {string} connectionName Name of the connection the Sender should be attached to
+   *
+   * @return {Promise<SendState>} Result of sending the message.
+   *
+   * @public
+   */
+  public async send<T>(target: string, message: T, connectionName: string): Promise<SendState>;
   /**
    * Creates a sender which will send messages to the given queue. If a sender
    * is already created for the queue then a new sender won't be created.
@@ -186,9 +141,6 @@ export class QueueService {
    *
    * @public
    */
-  public async send<T>(target: string, message: T): Promise<SendState>;
-  public async send<T>(target: string, message: T, sendOptions: SendOptions): Promise<SendState>;
-  public async send<T>(target: string, message: T, connectionName: string): Promise<SendState>;
   public async send<T>(target: string, message: T, sendOptions: SendOptions, connectionName: string): Promise<SendState>;
   public async send<T>(target: string, message: T, sendOptions?: SendOptions | string, connectionName?: string): Promise<SendState> {
     const connection =
@@ -199,54 +151,7 @@ export class QueueService {
     const sender: AwaitableSender = await this.getSender(target, connection);
     const { schedule, ...baseOptions } = options;
 
-    // TODO: refactor messageToSend creation using state object or state switch
-    let messageToSend: Message;
-
-    // scheduling
-    if (isDefined(schedule?.cron)) {
-      // when using CRON syntax, simply add it to the message
-      // NOD: not possible to use seconds
-      messageToSend = {
-        body: this.encodeMessage(message),
-        message_annotations: {
-          'x-opt-delivery-cron': schedule.cron,
-        },
-      };
-    } else if (schedule?.divideMinute) {
-      const period = Math.floor(60000 / schedule.divideMinute);
-      const repeat = schedule.divideMinute - 1;
-
-      // compose schedule
-      messageToSend = {
-        body: this.encodeMessage(message),
-        message_annotations: {
-          'x-opt-delivery-cron': '* * * * *', // trigger every minute
-          'x-opt-delivery-delay': 0,
-          'x-opt-delivery-period': period,
-          'x-opt-delivery-repeat': repeat,
-        },
-      };
-    } else if (isDefined(schedule?.afterSeconds)) {
-      const milliseconds = schedule.afterSeconds * 1000;
-      const now = new Date();
-
-      logger.debug(
-        `scheduling queue message for delivery after ${milliseconds} ms at around`,
-        new Date(now.getTime() + milliseconds).toISOString(),
-      );
-
-      // compose schedule
-      messageToSend = {
-        body: this.encodeMessage(message),
-        message_annotations: {
-          'x-opt-delivery-delay': milliseconds,
-        },
-      };
-    } else {
-      messageToSend = {
-        body: this.encodeMessage(message),
-      };
-    }
+    const messageToSend = this.getMessageToSend<T>(message, schedule);
 
     // add other options to the message
     extendObject(messageToSend, baseOptions);
@@ -403,9 +308,9 @@ export class QueueService {
     return JSON.stringify(message);
   }
 
-  private decodeMessage(message: string | Record<string, any> | Buffer): Record<string, any> {
+  private decodeMessage<T>(message: string | Record<string, any> | Buffer): T {
     if (toString.call(message) === '[object Object]') {
-      return message as Record<string, any>;
+      return message as T;
     }
 
     const objectLike: string = message instanceof Buffer ? message.toString() : (message as string);
@@ -415,6 +320,137 @@ export class QueueService {
   private getLinkToken(sourceToken: string, connection: string): string {
     return `${connection}:${sourceToken}`;
   }
+
+  private getMessageToSend<T>(message: T, schedule?: SendSchedule): Message {
+    switch (true) {
+      // repeating with CRON syntax
+      case isDefined(schedule?.cron): {
+        // when using CRON syntax, simply add it to the message
+        // NOTE: not possible to use seconds
+        return {
+          body: this.encodeMessage(message),
+          message_annotations: {
+            'x-opt-delivery-cron': schedule.cron,
+          },
+        };
+      }
+      // repeating `divideMinute` times every minute
+      case schedule?.divideMinute > 0: {
+        const period = Math.floor(60000 / schedule.divideMinute);
+        const repeat = schedule.divideMinute - 1;
+
+        return {
+          body: this.encodeMessage(message),
+          message_annotations: {
+            'x-opt-delivery-cron': '* * * * *', // trigger every minute
+            'x-opt-delivery-delay': 0,
+            'x-opt-delivery-period': period,
+            'x-opt-delivery-repeat': repeat,
+          },
+        };
+      }
+      // deliver delayed
+      case isDefined(schedule?.afterSeconds): {
+        const milliseconds = schedule.afterSeconds * 1000;
+
+        logger.debug(
+          `scheduling queue message for delivery after ${milliseconds} ms at around: ${new Date(new Date().getTime() + milliseconds).toISOString()}`,
+        );
+        return {
+          body: this.encodeMessage(message),
+          message_annotations: {
+            'x-opt-delivery-delay': milliseconds,
+          },
+        };
+      }
+      default: {
+        return {
+          body: this.encodeMessage(message),
+        };
+      }
+    }
+  }
+
+  private async getMessageBody<T>(
+    messageBody: unknown,
+    options: ListenOptions<T>,
+    control: MessageControl,
+    source: string,
+  ): Promise<T> | null | undefined {
+    // if not expecting parsed data
+    if (!isDefined(options?.type)) {
+      return null;
+    }
+
+    // if expecting parsed data
+
+    // parse body received as string from queue
+    try {
+      const parsed = this.decodeMessage<T>(messageBody);
+
+      const transformerOptions = options?.transformerOptions;
+      const validatorOptions = options?.validatorOptions;
+
+      if (options.skipValidation) return parsed;
+
+      try {
+        return await this.objectValidatorService.validate(options.type, parsed, { transformerOptions, validatorOptions });
+      } catch (err) {
+        const error = err as Error;
+
+        if (error instanceof ValidationNullObjectException) {
+          logger.error(`null received as body on ${source}`);
+
+          if ((options.acceptValidationNullObjectException ?? false) === true) {
+            control.accept();
+          } else {
+            control.reject(error.message);
+          }
+
+          return undefined;
+        }
+
+        // istanbul ignore else
+        if (error instanceof ValidationException) {
+          console.log('validation errors galore');
+          console.log(`${control.isHandled}`);
+          logger.error(`validation error ${source} (payload: ${JSON.stringify(parsed)}): ${error.message}`, error.stack);
+
+          control.reject('validation failed');
+          console.log(`${control.isHandled}`);
+          return undefined;
+        }
+
+        const parsedError = parseJson(error.message) || error.message;
+
+        logger.error(
+          `unexpected error happened during validation process on '${source}' (payload: ${JSON.stringify(
+            parsed,
+          )}): ${parsedError.toString()}`,
+          error.stack,
+        );
+      }
+    } catch (error) {
+      logger.error(`cant decode message: ${messageBody}`);
+
+      // can't decode, need to reject message
+      control.reject((error as Error).message);
+    }
+    return undefined;
+  }
 }
 
 const logger = new Logger(getLoggerContext(QueueService.name));
+
+const parseJson = (json: string): Record<string, any> => {
+  try {
+    if (typeof json !== 'string') {
+      return undefined;
+    }
+
+    return JSON.parse(json);
+  } catch (error) {
+    logger.error(`Error parsing JSON: ${(error as Error).message}`);
+    return undefined;
+  }
+};
