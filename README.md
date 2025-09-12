@@ -1,7 +1,6 @@
 # Nest AMQP 1.0 Module
 
-[![Build Status](https://github.com/team-supercharge/nest-amqp/actions/workflows/master-branch.yml/badge.svg)](https://github.com/team-supercharge/nest-amqp/actions/workflows/master-branch.yml)
-[![Coverage Status](https://codecov.io/github/team-supercharge/nest-amqp/coverage.svg?branch=master)](https://codecov.io/github/team-supercharge/nest-amqp)
+[![Build Status](https://github.com/team-supercharge/nest-amqp/actions/workflows/main-branch.yml/badge.svg)](https://github.com/team-supercharge/nest-amqp/actions/workflows/main-branch.yml)
 <a href="https://www.npmjs.com/@team-supercharge/nest-amqp" target="_blank"><img src="https://img.shields.io/npm/v/@team-supercharge/nest-amqp.svg" alt="NPM Version" /></a>
 <a href="https://www.npmjs.com/@team-supercharge/nest-amqp" target="_blank"><img src="https://img.shields.io/npm/l/@team-supercharge/nest-amqp.svg" alt="Package License" /></a>
 
