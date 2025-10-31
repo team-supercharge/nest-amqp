@@ -8,6 +8,8 @@ import { getLoggerContext, Logger } from '../util';
  * @public
  */
 export class MessageControl {
+  private readonly logger = new Logger(getLoggerContext(MessageControl.name));
+
   /**
    * Indicate if the message has already been processed.
    * If it is, do not process it again.
@@ -22,8 +24,8 @@ export class MessageControl {
    * @param {EventContext} context Event context received from Rhea related to the message
    */
   constructor(private readonly context: EventContext) {
-    console.log(`creating new message control for: ${context.receiver.address}`);
-    console.log(this.handled);
+    this.logger.log(`creating new message control for: ${context.receiver.address}`);
+    this.logger.log(this.handled);
   }
 
   /**
@@ -34,14 +36,14 @@ export class MessageControl {
    * in the callback, message will be automatically accepted.
    */
   public accept(): void {
-    console.log(`accept: ${this.handled}`);
+    this.logger.log(`accept: ${this.handled}`);
     if (this.handled) {
-      logger.log('message already handled');
+      this.logger.log('message already handled');
 
       return;
     }
 
-    logger.verbose('accepting message');
+    this.logger.verbose('accepting message');
 
     this.context.delivery.accept();
     this.handleSettlement();
@@ -59,15 +61,15 @@ export class MessageControl {
    * @param {string|object} reason reason to reject message
    */
   public reject(reason: string | Record<string, any>): void {
-    console.log(`reject: ${this.handled}`);
+    this.logger.log(`reject: ${this.handled}`);
 
     if (this.handled) {
-      logger.log('message already handled');
+      this.logger.log('message already handled');
 
       return;
     }
 
-    logger.verbose(`rejecting message with reason: ${reason.toString()}`);
+    this.logger.verbose(`rejecting message with reason: ${reason.toString()}`);
 
     // condition and description will not be displayed anywhere
     const error: AmqpError = {
@@ -91,12 +93,12 @@ export class MessageControl {
    */
   public release(): void {
     if (this.handled) {
-      logger.log('message already handled');
+      this.logger.log('message already handled');
 
       return;
     }
 
-    logger.verbose('releasing message');
+    this.logger.verbose('releasing message');
 
     // NOTE: need to be handled this way to trigger retry logic
     this.context.delivery.release({
@@ -141,10 +143,9 @@ export class MessageControl {
       return typeof reason !== 'string' ? JSON.stringify(reason) : reason;
     } catch (err) {
       const error = err as Error;
-      logger.error(`could not parse error reason: ${reason}, message: ${error.message}`, error.stack);
+      this.logger.error(`could not parse error reason: ${reason}, message: ${error.message}`, error.stack);
 
       return 'unknown';
     }
   }
 }
-const logger = new Logger(getLoggerContext(MessageControl.name));

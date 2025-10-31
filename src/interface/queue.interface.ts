@@ -1,6 +1,6 @@
 import { Message } from 'rhea-promise';
 
-import { ObjectValidationOptions } from '../service';
+import { ObjectValidationOptions } from '../util';
 
 /**
  * Interface defining options that can be passed to `@Listen()` decorator

@@ -1,4 +1,4 @@
-# Nest AMQP 1.0 Module
+# Nest AMQP
 
 [![Build Status](https://github.com/team-supercharge/nest-amqp/actions/workflows/main-branch.yml/badge.svg)](https://github.com/team-supercharge/nest-amqp/actions/workflows/main-branch.yml)
 <a href="https://www.npmjs.com/@team-supercharge/nest-amqp" target="_blank"><img src="https://img.shields.io/npm/v/@team-supercharge/nest-amqp.svg" alt="NPM Version" /></a>
@@ -26,234 +26,116 @@ To use the library, the peer dependencies must also be installed:
 $ npm install --save class-transformer class-validator
 ```
 
-## Usage
+## 4.x - What changed
 
-In the following subsections you can see how to send and receive messages, how to handle message transfer and how to use DTO classes for message
-payload transformation and validation.
+This major release targets NestJS v10 and Node 20+, simplifies configuration and improves testability.
 
-### Module import and connection options
+- One-connection-per-module: import `QueueModule.register({ name, connectionUri })` once per connection
+- Optional `ListenerModule` to enable `@Listen()` scanning (kept as sugar)
+- Per-connection `QueueClient` tokens via `getQueueClientToken(name)` for explicit usage
+- Testing utilities: in-memory broker and `createTestingQueue`
 
-To create a connection, you have to set the connection details. The library provides an easy way to set the connection details via a string
-connection URI. The library will parse this connection URI and set the appropriate connection options. Besides, you can add your custom
-connection options or other library settings with the module options.
+Quick start:
+```ts
+import { Module, Inject } from '@nestjs/common';
+import { QueueModule, ListenerModule, getQueueClientToken, QueueClient } from '@team-supercharge/nest-amqp';
 
-#### Connection URI
+@Module({
+  imports: [
+    QueueModule.register({ name: 'default', connectionUri: 'amqp://user:pass@localhost:5672' }),
+    ListenerModule,
+  ],
+})
+export class AppModule {}
 
-This library provides an easier way to set the connection options with a connection URI: you can describe the connection settings with a
-URL. The library will parse the URL and set the corresponding options. Here you can see the description of the URL:
-```bash
-protocol://[username:password@]host:port
+export class Producer {
+  constructor(@Inject(getQueueClientToken('default')) private readonly queue: QueueClient) {}
+  async run() { await this.queue.send('queue-name', { hello: 'world' }); }
+}
 ```
 
-The `username` and `password` components are optional, with these you can set the authentication credentials to the message queue server.
+## Usage (4.x)
 
-> Note: if you would like to use special characters in username or password, then you have to `encodeURIComponent()` these values, because
-> the library will decode the values right before connection creation. If you don't encode these values, then you will get a URL parse
-> error.
->
-> If you use environment variables to connection username or password, then use the env values with `encodeURIComponent()` as well.
->
-> Example:
-> ```
-> const username = encodeURIComponent('Jörg');
-> const password = encodeURIComponent('Gt|N#R=6$5(TE@rH"Pvc$7a');
-> const connectionUri = `amqps://${username}:${password}@localhost:5672`;
-> ```
+### Enable one or more connections
 
-You can set custom protocol which will set the connection transport automatically, so you don't have to add the `transport` to the connection
-options object. The protocol can be:
-* **amqp**: in this case the `transport` will be `tcp`
-* **amqps**: in this case the `transport` will be `ssl`
-* **amqp+ssl**: in this case the `transport` will be `ssl`
-* **amqp+tls**: in this case the `transport` will be `tls`
-
-Examples:
-* `amqp://localhost:5672`
-* `amqps://user:password@my-server.com:5672`
-* `amqp+tls://admin:secret@127.0.0.1:5672`
-
-#### Create connection
-
-To create a connection, you have to import the `QueueModule.forRoot()` module into your application's root module. The `forRoot()`
-static method has multiple parameters:
-* for single connection:
-  * the first and required is either the connection URI string, or the module configuration object
-  * the *optional* second parameter is the module and connection configuration object sans the connection URI, if you provided the URI as a first parameter
-* for multiple connections:
-  * the first and required parameter is an array of *connection configuration* objects
-  * the *optional* second parameter is the module configuration object
-
-To see the available module options, scroll down.
-Here are some simple examples:
-
-```typescript
-// for single connection
-
+```ts
 import { Module } from '@nestjs/common';
-import { QueueModule } from '@team-supercharge/nest-amqp';
+import { QueueModule, ListenerModule } from '@team-supercharge/nest-amqp';
 
 @Module({
   imports: [
-    QueueModule.forRoot('amqp://user:password@localhost:5672'),
-    // or alternatively
-    // QueueModule.forRoot({ connectionUri: 'amqp://user:password@localhost:5672' }),
+    QueueModule.register({ name: 'default', connectionUri: 'amqp://user:pass@localhost:5672' }),
+    ListenerModule,
   ],
 })
 export class AppModule {}
 ```
 
-```typescript
-// for multiple connections
+### Inject a per-connection client and send
 
-import { Module } from '@nestjs/common';
-import { QueueModule } from '@team-supercharge/nest-amqp';
+```ts
+import { Inject, Injectable } from '@nestjs/common';
+import { getQueueClientToken, QueueClient } from '@team-supercharge/nest-amqp';
 
-@Module({
-  imports: [
-    QueueModule.forRoot([
-      { connectionUri: 'amqp://user1:password1@localhost:5671' },
-      { connectionUri: 'amqp://user2:password2@localhost:5672', name: Connections.WORKER },
-    ]),
-  ],
-})
-export class AppModule {}
-```
+@Injectable()
+export class ProducerService {
+  constructor(@Inject(getQueueClientToken('default')) private readonly queue: QueueClient) {}
 
-#### Create connection with asynchronous module configuration
-
-Generally we are using environment variables to configure our application. Nest provides the
-[ConfigService](https://docs.nestjs.com/techniques/configuration) to use these env variables nicely. If you would like to configure the
-AMQP module with env variables, or you are using another asynchronous way to get the configuration, then you have to use the
-`forRootAsync()` static method instead of `forRoot()` on the `QueueModule` class. To see the available module options, scroll down.
-Here is an example:
-
-> Note: the @team-supercharge/nest-amqp package does not support multiple connection on asynchronous module configuration!
-
-```typescript
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { QueueModule, QueueModuleOptions } from '@team-supercharge/nest-amqp';
-
-@Module({
-  imports: [
-    QueueModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService): QueueModuleOptions => ({
-        connectionUri: configService.get<string>('AMQP_CONNECTION_URI'),
-        connectionOptions: {
-          transport: configService.get<string>('AMQP_CONNECTION_TRANSPORT'),
-        }
-      }),
-      inject: [ConfigService],
-    }),
-  ],
-})
-export class AppModule {}
-```
-
-Instead of `useFactory` you can use `useClass` or `useExisting` to set module options. You can see the examples in the
-[test file](https://github.com/team-supercharge/nest-amqp/tree/master/src/queue.module.spec.ts).
-
-#### Module options
-
-The module options object needs to be added to the `forRoot()` or `forRootAsync()` static method. The possible options can be these:
-* **isGlobal**?: A boolean value. If this property is `true`, then you can skip the import with`.forFeature()` method in the feature
-  modules, because the public services will be available in all modules which imports the root module. Default value is
-  `false`. (You can read more about it on [Nest modules page](https://docs.nestjs.com/modules#global-modules))
-* **logger**?: A custom object or class instance which implements the `LoggerService` interface from the `@nestjs/common` package.
-  With this option, you can use your own logging method to log information in `@team-supercharge/nest-amqp` library. If it is
-  not set then the library will use Nest's `Logger` service to logging. You can see a full example below in the readme.
-  Default value is `undefined`.
-* **throwExceptionOnConnectionError**?: A boolean value. If it's `true` then QueueModule will throw forward the exception which occurs
-  during the connection creation. Default value is `false`.
-* **connectionUri**?: It is an optional string property. This is required only when you are use the `forRootAsync()` method or the
-  `forRoot()` method for single connection with only an object argument.
-* **connectionOptions**?: It is an optional object. With this you can set
-  [Rhea's connection options](https://www.npmjs.com/package/rhea#connectoptions) which will be passed to the `Connection` object
-  during connection creation. The default value is `{}`.
-
-First basic example:
-```typescript
-@Module({
-  imports: [
-    QueueModule.forRoot(
-      'amqp://user:password@localhost:5672',
-      {
-        isGlobal: true,
-        throwExceptionOnConnectionError: true,
-        connectionOptions: {
-          transport: 'tcp'
-        }
-      }
-    ),
-  ],
-})
-export class AppModule {}
-```
-
-Second example with asynchronous configuration:
-```typescript
-@Module({
-  imports: [
-    QueueModule.forRootAsync({
-      // in case of `QueueModule.forRootAsync`, isGlobal property goes here and
-      // not into the object returned by 'useFactory' or 'useClass' or 'useExisting'
-      isGlobal: true,
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService): QueueModuleOptions => ({
-        connectionUri: configService.get<string>('AMQP_CONNECTION_URI'),
-        throwExceptionOnConnectionError: true,
-        connectionOptions: {
-          transport: configService.get<string>('AMQP_CONNECTION_TRANSPORT'),
-        }
-      }),
-      inject: [ConfigService],
-    }),
-  ],
-})
-export class AppModule {}
-```
-
-### Custom logger
-
-You can use your own logger solution in the library. To do this, you have to create a class which implements the `LoggerService` interface
-from the `@nestjs/common` package. After that you can add the class instance to the module options, and the logging will work with your
-custom solution. The `@team-supercharge/nest-amqp` library will use this one instance/object to log everything inside, so it is good if you
-use the `context` argument in the log methods to determine who is logging currently. Here is an example:
-
-```typescript
-import { LoggerService, Module } from "@nestjs/common";
-
-class MyLogger implements LoggerService {
-  public log(message: any, context: string): void {
-    console.log(`[${context}] ${message}`);
-  }
-  public error(message: any, trace: string, context: string): void {
-    console.error(`[${context}] ${message}`);
-  }
-  public warn(message: any, context: string): void {
-    console.warn(`[${context}] ${message}`);
-  }
-  public debug(message: any, context: string): void {
-    console.debug(`[${context}] ${message}`);
-  }
-  public verbose(message: any, context: string): void {
-    console.log(`[${context}] ${message}`);
+  async send(): Promise<void> {
+    await this.queue.send('queue-name', { hello: 'world' });
   }
 }
-
-@Module({
-  imports: [
-    QueueModule.forRoot(
-      'amqp://user:password@localhost:5672',
-      {
-        logger: new MyLogger()
-      }
-    ),
-  ],
-})
-export class AppModule {}
 ```
+
+### Using ListenerModule and @Listen()
+
+```ts
+import { Injectable } from '@nestjs/common';
+import { Listen } from '@team-supercharge/nest-amqp';
+
+@Injectable()
+export class ExampleListener {
+  @Listen('queue-name', { /* type, skipValidation, etc. */ })
+  async onMessage(payload: any): Promise<void> {
+    // handle message
+  }
+}
+```
+
+### Programmatic listeners (no decorators)
+
+```ts
+import { Inject, OnModuleInit } from '@nestjs/common';
+import { getQueueClientToken, QueueClient } from '@team-supercharge/nest-amqp';
+
+export class Bootstrap implements OnModuleInit {
+  constructor(@Inject(getQueueClientToken('default')) private readonly queue: QueueClient) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.queue.listen('queue-name', async (payload) => {
+      // handle message
+    });
+  }
+}
+```
+
+## Migration guide (3.x -> 4.x)
+
+- Replace `QueueModule.forRoot(...)`/`forRootAsync(...)` with `QueueModule.register({ name, connectionUri, ... })`/`registerAsync({ name, ... })`.
+- Replace `QueueModule.forFeature()` with importing `ListenerModule` to enable `@Listen()` scanning; or use programmatic `QueueClient.listen(...)`.
+- Replace `QueueService` injection for sending/listening with per-connection `QueueClient` via `@Inject(getQueueClientToken(name))`.
+- Remove any reliance on static storages; connections are managed internally and per-connection clients encapsulate usage.
+- Config interfaces were flattened; use `QueueModuleOptions` directly without inheritance.
+
+---
+
+## v3.x setup documentation
+
+For v3.x setup and configuration, please see the latest v3 README: https://github.com/team-supercharge/nest-amqp/blob/v3.6.4/README.md
+
+## Core usage (applies to v3 and v4)
+
+The following sections describe sending, listening, message control, and validation. These concepts are unchanged between v3 and v4; only the setup differs.
 
 ### Send a message
 

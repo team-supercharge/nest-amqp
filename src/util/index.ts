@@ -3,3 +3,7 @@ export * from './functions';
 export * from './logger';
 export * from './storage';
 export * from './util.module';
+export * from './retry-strategy.util';
+export * from './message-codec.util';
+export * from './message-factory.util';
+export * from './object-validator.util';

@@ -6,11 +6,11 @@ import { IsString } from 'class-validator';
 import { MessageControl } from '../../domain';
 import { AMQPService } from '../amqp/amqp.service';
 import { QueueService } from './queue.service';
+import { MessageCodec, MessageFactory, ObjectValidatorService } from '../../util';
 import { EventContextMock } from '../../test/event-context.mock';
 import { sleep } from '../../util/functions';
 import { SendState } from '../../enum';
 import { QueueModuleOptions } from '../../interface';
-import { ObjectValidatorService } from '../object-validator/object-validator.service';
 import { AMQP_DEFAULT_CONNECTION_TOKEN, QUEUE_MODULE_OPTIONS } from '../../constant';
 import { AMQConnectionStorage, Logger } from '../../util';
 import { LoggerMock } from '../../test/logger.mock';
@@ -25,12 +25,13 @@ describe('QueueService', () => {
   const defaultQueue = 'test';
   let queueService: QueueService;
   let amqpService: AMQPService;
+  let messageCodec: MessageCodec;
 
-  const getSender = (service: QueueService, queueName: string, connectionName: string): AwaitableSender => {
-    return (service as any).senders.get((service as any).getLinkToken(queueName, connectionName));
+  const getSender = (service: QueueService, queueName: string): AwaitableSender => {
+    return (service as any).senders.get(queueName);
   };
-  const getReceiver = (service: QueueService, queueName: string, connectionName: string): Receiver => {
-    return (service as any).receivers.get((service as any).getLinkToken(queueName, connectionName));
+  const getReceiver = (service: QueueService, queueName: string): Receiver => {
+    return (service as any).receivers.get(queueName);
   };
   const getMessageHandler = (service: AMQPService): ((context: EventContext) => Promise<void>) => {
     return (service.createReceiver as any).mock.calls[0][2];
@@ -54,6 +55,8 @@ describe('QueueService', () => {
       providers: [
         QueueService,
         ObjectValidatorService,
+        MessageCodec,
+        MessageFactory,
         {
           provide: QUEUE_MODULE_OPTIONS,
           useValue: moduleOptions as QueueModuleOptions,
@@ -86,6 +89,7 @@ describe('QueueService', () => {
     }).compile();
     queueService = module.get<QueueService>(QueueService);
     amqpService = module.get<AMQPService>(AMQPService);
+    messageCodec = module.get<MessageCodec>(MessageCodec);
 
     ((AMQConnectionStorage as any).storage as Map<string, any>).clear();
   });
@@ -97,7 +101,7 @@ describe('QueueService', () => {
   it('should listen to a queue given by the queue name', async () => {
     const spy = jest.spyOn(queueService, 'getReceiver' as any);
 
-    await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {});
+    await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {}, AMQP_DEFAULT_CONNECTION_TOKEN);
 
     expect(spy).toHaveBeenCalled();
     expect(spy.mock.calls[0][0]).toEqual('test');
@@ -111,7 +115,7 @@ describe('QueueService', () => {
       filter: filter.selector("(JMSDeliveryMode = 'PERSISTENT') OR (JMSCorrelationID) <> ''"),
     };
 
-    await queueService.listen(source, () => Promise.resolve(void 0), {});
+    await queueService.listen(source, () => Promise.resolve(void 0), {}, AMQP_DEFAULT_CONNECTION_TOKEN);
 
     expect(spy).toHaveBeenCalled();
     expect(spy.mock.calls[0][0]).toEqual(source);
@@ -119,7 +123,7 @@ describe('QueueService', () => {
 
   describe('receiver', () => {
     it('should create a receiver', async () => {
-      await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {});
+      await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {}, AMQP_DEFAULT_CONNECTION_TOKEN);
 
       expect(queueService['receivers'].size).toBe(1);
     });
@@ -127,7 +131,7 @@ describe('QueueService', () => {
     describe('message handling', () => {
       const callback = jest.fn().mockResolvedValue({});
       it('should handle not valid options for listen()', async () => {
-        await queueService.listen(defaultQueue, callback, null);
+        await queueService.listen(defaultQueue, callback, null, AMQP_DEFAULT_CONNECTION_TOKEN);
         const messageHandler = getMessageHandler(amqpService);
 
         await messageHandler(new EventContextMock());
@@ -136,7 +140,7 @@ describe('QueueService', () => {
       });
 
       it('should catch error during message validation', async () => {
-        await queueService.listen(defaultQueue, callback, { type: TestDto });
+        await queueService.listen(defaultQueue, callback, { type: TestDto }, AMQP_DEFAULT_CONNECTION_TOKEN);
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
 
@@ -156,6 +160,7 @@ describe('QueueService', () => {
             return Promise.reject(new Error(errorMessage));
           },
           null,
+          AMQP_DEFAULT_CONNECTION_TOKEN,
         );
         const messageHandler = getMessageHandler(amqpService);
 
@@ -166,7 +171,7 @@ describe('QueueService', () => {
       });
 
       it('should catch error during body decoding', async () => {
-        await queueService.listen(defaultQueue, () => Promise.resolve(void 0), { type: '' } as any);
+        await queueService.listen(defaultQueue, () => Promise.resolve(void 0), { type: '' } as any, AMQP_DEFAULT_CONNECTION_TOKEN);
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
         eventContext.message.body = '{null}';
@@ -178,10 +183,10 @@ describe('QueueService', () => {
         expect(messageControl.reject).toHaveBeenCalledWith(expect.stringMatching(/^(Expected|Unexpected token)/));
       });
 
-      it('should not validate parsed body if explicitly specified (deprecated)', async () => {
+      it('should not validate parsed body if explicitly specified', async () => {
         const callback = jest.fn(() => Promise.resolve(void 0));
         const body = { a: 1, b: 2 };
-        await queueService.listen(defaultQueue, callback, { type: '', skipValidation: true } as any);
+        await queueService.listen(defaultQueue, callback, { type: '', skipValidation: true } as any, AMQP_DEFAULT_CONNECTION_TOKEN);
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
         eventContext.message.body = JSON.stringify(body);
@@ -196,7 +201,7 @@ describe('QueueService', () => {
       it('should not validate parsed body if explicitly specified', async () => {
         const callback = jest.fn(() => Promise.resolve(void 0));
         const body = { a: 1, b: 2 };
-        await queueService.listen(defaultQueue, callback, { type: '', skipValidation: true } as any);
+        await queueService.listen(defaultQueue, callback, { type: '', skipValidation: true } as any, AMQP_DEFAULT_CONNECTION_TOKEN);
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
         eventContext.message.body = JSON.stringify(body);
@@ -214,7 +219,7 @@ describe('QueueService', () => {
           expect(result).toBeInstanceOf(TestDto);
           expect(result).toEqual(body);
         };
-        await queueService.listen(defaultQueue, callback, { type: TestDto });
+        await queueService.listen(defaultQueue, callback, { type: TestDto }, AMQP_DEFAULT_CONNECTION_TOKEN);
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
         eventContext.message.body = JSON.stringify(body);
@@ -223,7 +228,7 @@ describe('QueueService', () => {
       });
 
       it('should handle validation error when message body is null', async () => {
-        await queueService.listen(defaultQueue, () => Promise.resolve(void 0), { type: TestDto });
+        await queueService.listen(defaultQueue, () => Promise.resolve(void 0), { type: TestDto }, AMQP_DEFAULT_CONNECTION_TOKEN);
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
         eventContext.message.body = 'null';
@@ -235,7 +240,7 @@ describe('QueueService', () => {
       });
 
       it('should handle validation error when message body is an empty object', async () => {
-        await queueService.listen(defaultQueue, () => Promise.resolve(void 0), { type: TestDto });
+        await queueService.listen(defaultQueue, () => Promise.resolve(void 0), { type: TestDto }, AMQP_DEFAULT_CONNECTION_TOKEN);
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
         eventContext.message.body = '{}';
@@ -252,10 +257,15 @@ describe('QueueService', () => {
       });
 
       it('should accept context when ValidationNullObjectException was thrown', async () => {
-        await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {
-          type: TestDto,
-          acceptValidationNullObjectException: true,
-        });
+        await queueService.listen(
+          defaultQueue,
+          () => Promise.resolve(void 0),
+          {
+            type: TestDto,
+            acceptValidationNullObjectException: true,
+          },
+          AMQP_DEFAULT_CONNECTION_TOKEN,
+        );
         const messageHandler = getMessageHandler(amqpService);
         const eventContext = new EventContextMock();
         eventContext.message.body = 'null';
@@ -348,7 +358,12 @@ describe('QueueService', () => {
   describe('listen()', () => {
     it('should work with parallelMessageProcessing option', async () => {
       const parallelMessageProcessing = 2;
-      await queueService.listen(defaultQueue, () => Promise.resolve(void 0), { type: TestDto, parallelMessageProcessing });
+      await queueService.listen(
+        defaultQueue,
+        () => Promise.resolve(void 0),
+        { type: TestDto, parallelMessageProcessing },
+        AMQP_DEFAULT_CONNECTION_TOKEN,
+      );
       expect((amqpService as any).createReceiver.mock.calls[0][1]).toBe(parallelMessageProcessing);
     });
 
@@ -357,12 +372,17 @@ describe('QueueService', () => {
       const callback = async (result: any) => {
         expect(result).toEqual(payload);
       };
-      await queueService.listen(defaultQueue, callback, {
-        type: TestDto,
-        transformerOptions: {
-          strategy: 'exposeAll',
+      await queueService.listen(
+        defaultQueue,
+        callback,
+        {
+          type: TestDto,
+          transformerOptions: {
+            strategy: 'exposeAll',
+          },
         },
-      });
+        AMQP_DEFAULT_CONNECTION_TOKEN,
+      );
       const messageHandler = getMessageHandler(amqpService);
       const eventContext = new EventContextMock();
       eventContext.message.body = JSON.stringify(payload);
@@ -374,12 +394,17 @@ describe('QueueService', () => {
       const callback = async (result: any) => {
         expect(result).toEqual({});
       };
-      await queueService.listen(defaultQueue, callback, {
-        type: TestDto,
-        validatorOptions: {
-          skipNullProperties: true,
+      await queueService.listen(
+        defaultQueue,
+        callback,
+        {
+          type: TestDto,
+          validatorOptions: {
+            skipNullProperties: true,
+          },
         },
-      });
+        AMQP_DEFAULT_CONNECTION_TOKEN,
+      );
       const messageHandler = getMessageHandler(amqpService);
       const eventContext = new EventContextMock();
       eventContext.message.body = JSON.stringify({ name: null });
@@ -390,21 +415,21 @@ describe('QueueService', () => {
 
   describe('send()', () => {
     it('should successfully send a message', async () => {
-      const result = await queueService.send(defaultQueue, '');
+      const result = await queueService.send(defaultQueue, '', undefined, AMQP_DEFAULT_CONNECTION_TOKEN);
 
       expect(result).toEqual(SendState.Success);
     });
 
     it('should set cron schedule', async () => {
-      await queueService.send(defaultQueue, null, { schedule: { cron: 'cron' } });
-      const sender = getSender(queueService, defaultQueue, AMQP_DEFAULT_CONNECTION_TOKEN);
+      await queueService.send(defaultQueue, null, { schedule: { cron: 'cron' } }, AMQP_DEFAULT_CONNECTION_TOKEN);
+      const sender = getSender(queueService, defaultQueue);
 
       expect(sender.send).toHaveBeenCalledWith({ body: 'null', message_annotations: { 'x-opt-delivery-cron': 'cron' } });
     });
 
     it('should set divide minutes', async () => {
-      await queueService.send(defaultQueue, null, { schedule: { divideMinute: 100 } });
-      const sender = getSender(queueService, defaultQueue, AMQP_DEFAULT_CONNECTION_TOKEN);
+      await queueService.send(defaultQueue, null, { schedule: { divideMinute: 100 } }, AMQP_DEFAULT_CONNECTION_TOKEN);
+      const sender = getSender(queueService, defaultQueue);
 
       expect(sender.send).toHaveBeenCalledWith({
         body: 'null',
@@ -419,23 +444,23 @@ describe('QueueService', () => {
 
     it('should delay the delivery', async () => {
       const delay = 30;
-      await queueService.send(defaultQueue, null, { schedule: { afterSeconds: delay } });
-      const sender = getSender(queueService, defaultQueue, AMQP_DEFAULT_CONNECTION_TOKEN);
+      await queueService.send(defaultQueue, null, { schedule: { afterSeconds: delay } }, AMQP_DEFAULT_CONNECTION_TOKEN);
+      const sender = getSender(queueService, defaultQueue);
 
       expect(sender.send).toHaveBeenCalledWith({ body: 'null', message_annotations: { 'x-opt-delivery-delay': delay * 1000 } });
     });
 
     it('should have defaults with no options and no connectionName', async () => {
-      await queueService.send(defaultQueue, null);
-      const sender = getSender(queueService, defaultQueue, AMQP_DEFAULT_CONNECTION_TOKEN);
+      await queueService.send(defaultQueue, null, undefined, AMQP_DEFAULT_CONNECTION_TOKEN);
+      const sender = getSender(queueService, defaultQueue);
 
       expect(sender.send).toHaveBeenCalledWith({ body: 'null' });
     });
 
     it('should have defaults with no options and with connectionName', async () => {
       const connection = 'test_connection';
-      await queueService.send(defaultQueue, null, connection);
-      const sender = getSender(queueService, defaultQueue, connection);
+      await queueService.send(defaultQueue, null, undefined, connection);
+      const sender = getSender(queueService, defaultQueue);
 
       expect(sender.send).toHaveBeenCalledWith({ body: 'null' });
     });
@@ -444,7 +469,7 @@ describe('QueueService', () => {
       const delay = 30;
       const connection = 'test_connection';
       await queueService.send(defaultQueue, null, { schedule: { afterSeconds: delay } }, connection);
-      const sender = getSender(queueService, defaultQueue, connection);
+      const sender = getSender(queueService, defaultQueue);
 
       expect(sender.send).toHaveBeenCalledWith({ body: 'null', message_annotations: { 'x-opt-delivery-delay': delay * 1000 } });
     });
@@ -452,7 +477,7 @@ describe('QueueService', () => {
     it('should return an existing sender if already created', async () => {
       const sender = {} as AwaitableSender;
       const target = 'test-queue';
-      queueService['senders'].set('default:test-queue', sender);
+      queueService['senders'].set(target, sender);
 
       const result = await queueService['getSender'](target, 'default');
 
@@ -528,12 +553,12 @@ describe('QueueService', () => {
   describe('removeListener()', () => {
     it('should remove listener', async () => {
       (amqpService.createReceiver as jest.Mock).mockResolvedValue(new EventContextMock().receiver);
-      await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {});
+      await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {}, AMQP_DEFAULT_CONNECTION_TOKEN);
       expect(queueService['receivers'].size).toBe(1);
 
       const receiver = queueService['receivers'].get(queueService['receivers'].keys().next().value);
 
-      const result = await queueService.removeListener(defaultQueue);
+      const result = await queueService.removeListener(defaultQueue, AMQP_DEFAULT_CONNECTION_TOKEN);
       expect(receiver.close).toHaveBeenCalled();
       expect(result).toBe(true);
       expect(queueService['receivers'].size).toBe(0);
@@ -560,11 +585,11 @@ describe('QueueService', () => {
         address: defaultQueue,
         filter: filter.selector("((JMSCorrelationID) <> ''"),
       };
-      await queueService.listen(source, () => Promise.resolve(void 0), {});
+      await queueService.listen(source, () => Promise.resolve(void 0), {}, AMQP_DEFAULT_CONNECTION_TOKEN);
       expect(queueService['receivers'].size).toBe(1);
       const receiver = queueService['receivers'].get(queueService['receivers'].keys().next().value);
 
-      const result = await queueService.removeListener(source);
+      const result = await queueService.removeListener(source, AMQP_DEFAULT_CONNECTION_TOKEN);
       expect(receiver.close).toHaveBeenCalled();
       expect(result).toBe(true);
       expect(queueService['receivers'].size).toBe(0);
@@ -572,10 +597,10 @@ describe('QueueService', () => {
 
     it('should not do anything with non-existing listener', async () => {
       (amqpService.createReceiver as jest.Mock).mockResolvedValue(new EventContextMock().receiver);
-      await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {});
+      await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {}, AMQP_DEFAULT_CONNECTION_TOKEN);
       expect(queueService['receivers'].size).toBe(1);
 
-      const result = await queueService.removeListener('otherQueue');
+      const result = await queueService.removeListener('otherQueue', AMQP_DEFAULT_CONNECTION_TOKEN);
       expect(result).toBe(false);
       expect(queueService['receivers'].size).toBe(1);
     });
@@ -583,8 +608,8 @@ describe('QueueService', () => {
 
   it('should shutdown', async () => {
     (amqpService.createReceiver as jest.Mock).mockResolvedValue(new EventContextMock().receiver);
-    await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {});
-    const receiver = getReceiver(queueService, defaultQueue, AMQP_DEFAULT_CONNECTION_TOKEN);
+    await queueService.listen(defaultQueue, () => Promise.resolve(void 0), {}, AMQP_DEFAULT_CONNECTION_TOKEN);
+    const receiver = getReceiver(queueService, defaultQueue);
     (receiver as any).connection = {
       isOpen: () => true,
     };
@@ -618,19 +643,6 @@ describe('QueueService', () => {
 
       expect(queueService['receivers'].size).toBe(1);
     });
-
-    it('should create different receivers for the same queue name but on different connections', async () => {
-      const queue = 'queue';
-      enum connection {
-        A = 'A',
-        B = 'B',
-      }
-
-      await queueService['getReceiver'](queue, 1, async () => Promise.resolve(void 0), connection.A);
-      await queueService['getReceiver'](queue, 1, async () => Promise.resolve(void 0), connection.B);
-
-      expect(queueService['receivers'].size).toBe(2);
-    });
   });
 
   describe('getSender()', () => {
@@ -646,58 +658,45 @@ describe('QueueService', () => {
 
       expect(queueService['senders'].size).toBe(1);
     });
-
-    it('should create different senders for the same queue name but on different connections', async () => {
-      const queue = 'queue';
-      enum connection {
-        A = 'A',
-        B = 'B',
-      }
-
-      await queueService['getSender'](queue, connection.A);
-      await queueService['getSender'](queue, connection.B);
-
-      expect(queueService['senders'].size).toBe(2);
-    });
   });
 
   it('should encode message', () => {
     const obj = { name: 'Peter' };
-    const result = queueService['encodeMessage'](obj);
+    const result = messageCodec.encode(obj);
 
     expect(result).toEqual(JSON.stringify(obj));
   });
 
   describe('decodeMessage()', () => {
     it('should decode Buffer', () => {
-      const result = queueService['decodeMessage'](Buffer.from('{}'));
+      const result = messageCodec.decode(Buffer.from('{}'));
 
       expect(result).toEqual({});
     });
 
     it('should with the argument itself if it is an object', () => {
       const obj = { name: 'Peter' };
-      const result = queueService['decodeMessage'](obj);
+      const result = messageCodec.decode(obj);
 
       expect(result).toBe(obj);
     });
 
     it('should decode not object but valid values', () => {
-      const result = queueService['decodeMessage']('false');
+      const result = messageCodec.decode('false');
 
       expect(result).toEqual(false);
     });
 
     it('should decode valid objects', () => {
       const obj = { a: 1, b: { c: 2 } };
-      const result = queueService['decodeMessage'](JSON.stringify(obj));
+      const result = messageCodec.decode(JSON.stringify(obj));
 
       expect(result).toEqual(obj);
     });
 
     it('should throw error on invalid objects', () => {
       expect(() => {
-        queueService['decodeMessage']('{null}');
+        messageCodec.decode('{null}');
       }).toThrow(SyntaxError);
     });
   });
