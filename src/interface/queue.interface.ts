@@ -1,6 +1,6 @@
 import { Message } from 'rhea-promise';
 
-import { ObjectValidationOptions } from '../service';
+import { ObjectValidationOptions } from '../util';
 
 /**
  * Interface defining options that can be passed to `@Listen()` decorator
@@ -13,14 +13,6 @@ export interface ListenOptions<T> extends ObjectValidationOptions {
    * payload with `class-transformer` and `class-validator` decorators.
    */
   type?: new (...params: any[]) => T;
-
-  /**
-   * @deprecated Will be removed in the next major release, use `skipValidation` instead
-   *
-   * If it is true then the message body will not be validated.
-   * @default false
-   */
-  noValidate?: boolean;
 
   /**
    *

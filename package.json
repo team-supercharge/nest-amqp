@@ -20,8 +20,8 @@
     "access": "public"
   },
   "scripts": {
-    "prebuild": "rimraf dist",
-    "prebuild:prod": "rimraf dist",
+    "prebuild": "npx rimraf dist",
+    "prebuild:prod": "npx rimraf dist",
     "build": "npx nest build",
     "build:prod": "npx nest build -p tsconfig.prod.json",
     "format": "prettier --write \"src/**/*.ts\"",
@@ -46,8 +46,8 @@
   "devDependencies": {
     "@commitlint/cli": "19.8.1",
     "@commitlint/config-conventional": "19.8.1",
-    "@nestjs/testing": "11.1.6",
     "@nestjs/cli": "11.0.10",
+    "@nestjs/testing": "11.1.6",
     "@types/express": "5.0.3",
     "@types/jest": "30.0.0",
     "@types/node": "24.3.1",
@@ -65,6 +65,7 @@
     "json": "11.0.0",
     "prettier": "3.6.2",
     "reflect-metadata": "0.2.2",
+    "rimraf": "6.1.0",
     "rxjs": "7.8.2",
     "ts-jest": "29.4.1",
     "ts-loader": "9.5.4",

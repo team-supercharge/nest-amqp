@@ -1,6 +1,7 @@
-import type { Message, Source } from 'rhea-promise';
+import { Message, Source } from 'rhea-promise';
+
 import { ListenOptions } from '../interface';
-import type { MessageControl } from './message-control.domain';
+import { MessageControl } from './message-control.domain';
 
 /**
  * Metadata added by the `@Listener` decorator

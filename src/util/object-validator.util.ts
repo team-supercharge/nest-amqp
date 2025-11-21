@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ClassTransformOptions, plainToInstance } from 'class-transformer';
 import { isDefined, validate, ValidatorOptions } from 'class-validator';
 
-import { ValidationException, ValidationNullObjectException } from '../../util/exceptions';
+import { ValidationException, ValidationNullObjectException } from './exceptions';
 
 export interface ObjectValidationOptions {
   transformerOptions?: ClassTransformOptions;

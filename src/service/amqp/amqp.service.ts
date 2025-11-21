@@ -38,7 +38,7 @@ export class AMQPService {
    * attempt to reconnect to the message broker but only once.
    *
    * ```ts
-   * const connection = await AMQPService.createConnection({ connectionUri: 'amqp://user:password@localhost:5672' });
+   * const connection = await AMQPService.createConnection({ connectionUri: 'amqp://<user>:<password>@localhost:5672' });
    * ```
    *
    * @param {QueueModuleOptions} options Options for the module.
@@ -291,12 +291,11 @@ export class AMQPService {
   // istanbul ignore next
   private static getTransport(protocol: string): ConnectionOptions['transport'] {
     switch (protocol) {
-      case 'amqp:':
-        return 'tcp';
       case 'amqps:':
-        return 'ssl';
       case 'amqp+ssl:':
         return 'ssl';
+      case 'amqp:':
+        return 'tcp';
       case 'amqp+tls:':
         return 'tls';
       default:

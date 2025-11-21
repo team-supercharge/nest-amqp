@@ -13,6 +13,13 @@ export interface QueueModuleAsyncOptions extends Pick<ModuleMetadata, 'imports'>
   isGlobal?: boolean;
 
   /**
+   * Name of the connection, must be unique
+   *
+   * It will be a default value if not given
+   */
+  readonly name?: string;
+
+  /**
    * Create Provider with factory function
    *
    * Will be tried 1st

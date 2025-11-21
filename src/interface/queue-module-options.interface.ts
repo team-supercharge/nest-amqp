@@ -1,29 +1,11 @@
 import { ConnectionOptions } from 'rhea-promise';
 import { LoggerService } from '@nestjs/common';
 
-/** Interface defining options for importing QueueModule for multiple connections
- *
- * @public
- */
-export interface MultiConnectionQueueModuleOptions {
-  /**
-   * Marks Module as Global module in NestJS
-   */
-  isGlobal?: boolean;
-
-  /**
-   * Custom Logger to be used if needed
-   */
-  logger?: LoggerService;
-}
-
 /** Interface defining options for importing QueueModule
  *
- * @extends AMQPConnectionOptions
- *
  * @public
  */
-export interface QueueModuleOptions extends AMQPConnectionOptions {
+export interface QueueModuleOptions {
   /**
    * Marks Module as Global module in NestJS
    */
@@ -33,21 +15,6 @@ export interface QueueModuleOptions extends AMQPConnectionOptions {
    * Custom Logger to be used if needed
    */
   logger?: LoggerService;
-}
-
-/** Interface defining options for importing QueueModule with multiple connections
- *
- * @extends AMQPConnectionOptions
- *
- * @public
- */
-export interface NamedAMQPConnectionOptions extends AMQPConnectionOptions {
-  /**
-   * Name of the connection, must be unique
-   *
-   * It will be a default value if not given
-   */
-  readonly name?: string;
 }
 
 /**
@@ -62,7 +29,7 @@ export interface AMQPConnectionOptions {
   connectionUri: string;
 
   /**
-   * Queue Module should throw exception when error occures in the connections
+   * Queue Module should throw exception when error occurs in the connections
    * @default false
    */
   throwExceptionOnConnectionError?: boolean;

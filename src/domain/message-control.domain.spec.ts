@@ -82,8 +82,8 @@ describe('MessageControl', () => {
   });
 
   it('should say that the control is handled or not', () => {
-    expect(messageControl.isHandled()).toBe(false);
+    expect(messageControl.isHandled).toBe(false);
     messageControl.accept();
-    expect(messageControl.isHandled()).toBe(true);
+    expect(messageControl.isHandled).toBe(true);
   });
 });

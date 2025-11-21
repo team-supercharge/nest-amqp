@@ -1,110 +1,138 @@
-import { DynamicModule, Inject, Module, OnModuleDestroy, OnModuleInit, Provider, Type } from '@nestjs/common';
+import { DynamicModule, Module, OnModuleDestroy, OnModuleInit, Provider } from '@nestjs/common';
 import { Connection } from 'rhea-promise';
-import { MetadataScanner, ModuleRef } from '@nestjs/core';
 import { isDefined } from 'class-validator';
 
+import { QueueModuleOptions, QueueModuleAsyncOptions, QueueModuleOptionsFactory, AMQPConnectionOptions } from './interface';
+import { AMQPService, QueueService } from './service';
+import { AMQP_DEFAULT_CONNECTION_TOKEN, QUEUE_MODULE_OPTIONS } from './constant';
 import {
-  QueueModuleOptions,
-  QueueModuleAsyncOptions,
-  QueueModuleOptionsFactory,
-  NamedAMQPConnectionOptions,
-  AMQPConnectionOptions,
-  MultiConnectionQueueModuleOptions,
-} from './interface';
-import { AMQPService, ObjectValidatorService, QueueService } from './service';
-import { ListenerExplorer } from './explorer';
-import { AMQP_CONNECTION_RECONNECT, AMQP_DEFAULT_CONNECTION_TOKEN, QUEUE_MODULE_OPTIONS } from './constant';
-import { ListenerMetadata } from './domain';
-import { getAMQConnectionToken, getLoggerContext, getAMQConnectionOptionsToken, Logger, AMQConnectionOptionsStorage } from './util';
-
-const toString: () => string = Object.prototype.toString;
+  getQueueClientToken,
+  getAMQConnectionToken,
+  getLoggerContext,
+  getAMQConnectionOptionsToken,
+  Logger,
+  AMQConnectionOptionsStorage,
+  MessageCodec,
+  MessageFactory,
+  ObjectValidatorService,
+  UtilModule,
+} from './util';
 
 @Module({})
 export class QueueModule implements OnModuleInit, OnModuleDestroy {
-  private static readonly moduleDefinition: DynamicModule = {
-    global: false,
-    module: QueueModule,
-    providers: [AMQPService, QueueService, MetadataScanner, ListenerExplorer, ObjectValidatorService],
-    exports: [QueueService],
-  };
+  private static readonly CORE_PROVIDERS: Provider[] = [AMQPService, QueueService, ObjectValidatorService, MessageCodec, MessageFactory];
 
-  public static forRoot(options: QueueModuleOptions): DynamicModule;
-  public static forRoot(connectionUri: string): DynamicModule;
-  public static forRoot(connectionUri: string, options: Omit<QueueModuleOptions, 'connectionUri'>): DynamicModule;
-  public static forRoot(connections: NamedAMQPConnectionOptions[], options?: MultiConnectionQueueModuleOptions): DynamicModule;
-  public static forRoot(
-    connectionUri: string | QueueModuleOptions | NamedAMQPConnectionOptions[],
-    options: Omit<QueueModuleOptions, 'connectionUri'> | MultiConnectionQueueModuleOptions = {},
-  ): DynamicModule {
-    const queueModuleOptionsProviders = [];
-    const connectionProviders = [];
-    const connectionOptionsProviders = [];
+  public static register(options: {
+    name: string;
+    connectionUri: string;
+    connectionOptions?: AMQPConnectionOptions['connectionOptions'];
+    isGlobal?: boolean;
+    logger?: QueueModuleOptions['logger'];
+  }): DynamicModule {
+    const { name, isGlobal, logger: customLogger, connectionUri, connectionOptions } = options;
 
-    if (toString.call(connectionUri) === '[object Array]') {
-      queueModuleOptionsProviders.push(QueueModule.getQueueModuleOptionsProvider(options));
-      for (const connectionOptions of connectionUri as NamedAMQPConnectionOptions[]) {
-        connectionOptionsProviders.push(QueueModule.getAMQPConnectionOptionsProvider(connectionOptions, connectionOptions.name));
-        connectionProviders.push(QueueModule.getConnectionProvider(connectionOptions.name));
-      }
-    } else {
-      const moduleOptions = typeof connectionUri === 'string' ? { ...options, connectionUri } : (connectionUri as QueueModuleOptions);
-      queueModuleOptionsProviders.push(QueueModule.getQueueModuleOptionsProvider(moduleOptions));
-      connectionOptionsProviders.push(QueueModule.getAMQPConnectionOptionsProvider(moduleOptions));
-      connectionProviders.push(QueueModule.getConnectionProvider(AMQP_DEFAULT_CONNECTION_TOKEN));
-    }
-
-    Object.assign(QueueModule.moduleDefinition, {
-      global: !!options.isGlobal,
-      providers: [
-        ...queueModuleOptionsProviders,
-        ...QueueModule.moduleDefinition.providers,
-        ...connectionOptionsProviders,
-        ...connectionProviders,
-      ],
-    });
-
-    return QueueModule.moduleDefinition;
-  }
-
-  public static forRootAsync(options: QueueModuleAsyncOptions): DynamicModule {
-    // TODO - allow for multiple connections
-    const connectionProviders = [QueueModule.getConnectionProvider(AMQP_DEFAULT_CONNECTION_TOKEN)];
-
-    const asyncProviders = this.createAsyncProviders(options);
-
-    Object.assign(QueueModule.moduleDefinition, {
-      global: !!options.isGlobal,
-      imports: options.imports,
-      providers: [...asyncProviders, ...QueueModule.moduleDefinition.providers, ...connectionProviders],
-    });
-
-    return QueueModule.moduleDefinition;
-  }
-
-  public static forFeature(): DynamicModule {
-    return QueueModule.moduleDefinition;
-  }
-
-  private static createAsyncProviders(options: QueueModuleAsyncOptions): Provider[] {
-    if (!options.useClass && !options.useExisting && !options.useFactory) {
-      throw new Error('Must provide factory, class or existing provider');
-    }
-
-    if (options.useExisting || options.useFactory) {
-      return [this.createAsyncQueueModuleOptionsProvider(options), this.createAsyncAMQConnectionsOptionsProvider(options)];
-    }
-
-    const useClass = options.useClass as Type<QueueModuleOptionsFactory>;
-
-    return [
-      this.createAsyncQueueModuleOptionsProvider(options),
-      this.createAsyncAMQConnectionsOptionsProvider(options),
+    const queueModuleOptionsProviders: Provider[] = [
       {
-        provide: useClass,
-        useClass,
+        provide: QUEUE_MODULE_OPTIONS,
+        useValue: { isGlobal, logger: customLogger } as Partial<QueueModuleOptions>,
       },
     ];
+
+    const connectionOptionsProviders: Provider[] = [
+      this.getAMQPConnectionOptionsProvider(
+        {
+          connectionUri,
+          ...(isDefined(connectionOptions) ? { connectionOptions } : {}),
+        } as AMQPConnectionOptions,
+        name,
+      ),
+    ];
+
+    const connectionProviders: Provider[] = [this.getConnectionProvider(name)];
+
+    const queueClientProvider: Provider = {
+      provide: getQueueClientToken(name),
+      useFactory: (queueService: QueueService) => new (require('./service/queue/queue.client').QueueClient)(queueService, name),
+      inject: [QueueService],
+    };
+
+    const providers: Provider[] = [
+      ...queueModuleOptionsProviders,
+      ...connectionOptionsProviders,
+      ...connectionProviders,
+      ...QueueModule.CORE_PROVIDERS,
+      queueClientProvider,
+    ];
+
+    return {
+      global: isGlobal ?? false,
+      module: QueueModule,
+      providers,
+      exports: [QueueService, getQueueClientToken(name)],
+      imports: [UtilModule],
+    };
   }
+
+  /**
+   * New API: Async one-connection-per-DynamicModule registration
+   */
+  public static registerAsync(options: QueueModuleAsyncOptions & { name: string }): DynamicModule {
+    const name = options.name;
+
+    const asyncOptionsProvider = this.createAsyncQueueModuleOptionsProvider(options);
+    const asyncConnectionOptionsProvider: Provider = options.useFactory
+      ? {
+          provide: getAMQConnectionOptionsToken(name),
+          inject: options.inject || [],
+          useFactory: async (...args: any[]) => {
+            const moduleOptions = await options.useFactory!(...args);
+            const useValue = QueueModule.getConnectionOptions(moduleOptions);
+            AMQConnectionOptionsStorage.add(name, useValue);
+            return moduleOptions;
+          },
+        }
+      : {
+          provide: getAMQConnectionOptionsToken(name),
+          useFactory: async (optionsFactory: QueueModuleOptionsFactory) => {
+            const moduleOptions = await optionsFactory.createQueueModuleOptions();
+            const useValue = QueueModule.getConnectionOptions(moduleOptions);
+            AMQConnectionOptionsStorage.add(name, useValue);
+            return moduleOptions;
+          },
+          inject: [options.useClass ?? (options.useExisting as any)],
+        };
+
+    const connectionProviders = [QueueModule.getConnectionProvider(name)];
+
+    const queueClientProvider: Provider = {
+      provide: getQueueClientToken(name),
+      useFactory: (queueService: QueueService) => new (require('./service/queue/queue.client').QueueClient)(queueService, name),
+      inject: [QueueService],
+    };
+
+    const baseProviders: Provider[] = [
+      ...QueueModule.CORE_PROVIDERS,
+      asyncOptionsProvider,
+      asyncConnectionOptionsProvider,
+      ...connectionProviders,
+      queueClientProvider,
+    ];
+
+    const extraProviders: Provider[] = [];
+    if (options.useClass) {
+      extraProviders.push({ provide: options.useClass, useClass: options.useClass });
+    }
+
+    return {
+      global: options.isGlobal ?? false,
+      module: QueueModule,
+      imports: [...(options.imports ?? []), UtilModule],
+      providers: [...baseProviders, ...extraProviders],
+      exports: [QueueService, getQueueClientToken(name)],
+    };
+  }
+
+  // Legacy APIs removed in vNext
 
   private static createAsyncQueueModuleOptionsProvider(options: QueueModuleAsyncOptions): Provider {
     if (options.useFactory) {
@@ -124,37 +152,7 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private static createAsyncAMQConnectionsOptionsProvider(options: QueueModuleAsyncOptions): Provider {
-    if (options.useFactory) {
-      return {
-        provide: getAMQConnectionOptionsToken(AMQP_DEFAULT_CONNECTION_TOKEN),
-        inject: options.inject || [],
-        useFactory: async (...args: any[]) => {
-          const moduleOptions = await options.useFactory(...args);
-          const useValue = QueueModule.getConnectionOptions(moduleOptions);
-
-          AMQConnectionOptionsStorage.add(AMQP_DEFAULT_CONNECTION_TOKEN, useValue);
-
-          return moduleOptions;
-        },
-      };
-    }
-
-    const inject = [options.useClass ?? options.useExisting];
-
-    return {
-      provide: getAMQConnectionOptionsToken(AMQP_DEFAULT_CONNECTION_TOKEN),
-      useFactory: async (optionsFactory: QueueModuleOptionsFactory) => {
-        const moduleOptions = await optionsFactory.createQueueModuleOptions();
-        const useValue = QueueModule.getConnectionOptions(moduleOptions);
-
-        AMQConnectionOptionsStorage.add(AMQP_DEFAULT_CONNECTION_TOKEN, useValue);
-
-        return moduleOptions;
-      },
-      inject,
-    };
-  }
+  // Legacy async AMQ connection options provider removed in vNext
 
   /**
    * Creates a connection provider with the given name
@@ -171,13 +169,6 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
       provide: getAMQConnectionToken(connection),
       useFactory: async (options: AMQPConnectionOptions): Promise<Connection> => AMQPService.createConnection(options, connection),
       inject: [getAMQConnectionOptionsToken(connection)],
-    };
-  }
-
-  private static getQueueModuleOptionsProvider(options: Partial<QueueModuleOptions>): Provider {
-    return {
-      provide: QUEUE_MODULE_OPTIONS,
-      useValue: options,
     };
   }
 
@@ -203,33 +194,11 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  constructor(
-    @Inject(QUEUE_MODULE_OPTIONS) private readonly moduleOptions: QueueModuleOptions,
-    private readonly queueService: QueueService,
-    private readonly listenerExplorer: ListenerExplorer,
-    private readonly moduleRef: ModuleRef,
-  ) {}
+  constructor(private readonly queueService: QueueService) {}
 
   // istanbul ignore next
   public async onModuleInit(): Promise<void> {
     logger.log('initializing queue module');
-
-    if (this.moduleOptions.logger) {
-      Logger.overrideLogger(this.moduleOptions.logger);
-    }
-
-    // find everything marked with @Listen
-    const listeners = this.listenerExplorer.explore();
-    await this.attachListeners(listeners);
-
-    AMQPService.eventEmitter.on(AMQP_CONNECTION_RECONNECT, () => {
-      logger.log('reattaching receivers to connection');
-      this.queueService.clearSenderAndReceiverLinks();
-      this.attachListeners(listeners)
-        .then(() => logger.log('receivers reattached'))
-        .catch(error => logger.error('error while reattaching listeners', error));
-    });
-
     logger.log('queue module initialized');
   }
 
@@ -241,24 +210,6 @@ export class QueueModule implements OnModuleInit, OnModuleDestroy {
     logger.log('queue module destroyed');
   }
 
-  // istanbul ignore next
-  private async attachListeners(listeners: Array<ListenerMetadata<unknown>>): Promise<void> {
-    // set up listeners
-    for (const listener of listeners) {
-      logger.debug(`attaching listener for @Listen: ${JSON.stringify(listener)}`);
-
-      // fetch instance from DI framework
-      let target: any;
-      try {
-        target = this.moduleRef.get(listener.target as any, { strict: false });
-      } catch (err) {
-        const error = err as Error;
-        logger.error(`Failed to fetch instance for listener ${listener.targetName}: ${error.message}`, error.stack);
-        throw err;
-      }
-
-      await this.queueService.listen(listener.source, listener.callback.bind(target), listener.options, listener.connection);
-    }
-  }
+  // no listener wiring here; use ListenerModule to enable @Listen()
 }
 const logger = new Logger(getLoggerContext(QueueModule.name));
